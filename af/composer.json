@@ -1,0 +1,16 @@
+{
+  "name": "audit-fund/app",
+  "description": "Учёт аудиторного фонда (PHP)",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.0"
+  },
+  "autoload": {
+    "files": [
+      "includes/bootstrap_autoload.php"
+    ]
+  },
+  "config": {
+    "sort-packages": true
+  }
+}
