@@ -1,0 +1,4 @@
+# Закрыть прямой HTTP-доступ к PHP-библиотекам (подключаются только через require).
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>

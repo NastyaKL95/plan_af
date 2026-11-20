@@ -1,0 +1,4 @@
+# Схемы и дампы не должны отдаваться напрямую через веб.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
