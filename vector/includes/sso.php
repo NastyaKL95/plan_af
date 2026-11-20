@@ -10,11 +10,53 @@ require_once __DIR__ . '/sso_token.php';
  * Подключать после bootstrap.php.
  */
 
+function planner_sso_defaults(): array
+{
+    return [
+        'enabled' => true,
+        'secret' => 'af5f7b16f09a100d8e3588020c3f3ed198a559afffb92c2b7a740df8fb5feea6',
+        'self_consume_url' => 'https://planiro75.ru/public/sso/consume.php',
+        'peer_check_url' => 'https://af.zabedu.ru/sso_check.php',
+        'peer_consume_url' => 'https://af.zabedu.ru/sso_consume.php',
+        'peer_logout_url' => 'https://af.zabedu.ru/sso_logout.php',
+        'logout_return_url' => 'https://planiro75.ru/public/login.php',
+        'logout_accept_return' => 'https://af.zabedu.ru/index.php',
+    ];
+}
+
 function planner_sso_cfg(): array
 {
     $sso = app_config()['sso'] ?? [];
+    if (!is_array($sso)) {
+        $sso = [];
+    }
+    foreach (planner_sso_defaults() as $key => $value) {
+        if (!array_key_exists($key, $sso) || $sso[$key] === '' || $sso[$key] === null) {
+            $sso[$key] = $value;
+        }
+    }
 
-    return is_array($sso) ? $sso : [];
+    return $sso;
+}
+
+function planner_sso_expire_session_cookie(): void
+{
+    if (!ini_get('session.use_cookies')) {
+        return;
+    }
+    $params = session_get_cookie_params();
+    $sameSite = (string) ($params['samesite'] ?? 'Lax');
+    if (!in_array($sameSite, ['Lax', 'Strict', 'None'], true)) {
+        $sameSite = 'Lax';
+    }
+    setcookie(session_name(), '', [
+        'expires' => time() - 42000,
+        'path' => ($params['path'] ?? '') !== '' ? (string) $params['path'] : '/',
+        'domain' => (string) ($params['domain'] ?? ''),
+        'secure' => !empty($params['secure']),
+        'httponly' => !isset($params['httponly']) || !empty($params['httponly']),
+        'samesite' => $sameSite,
+    ]);
 }
 
 function planner_sso_secret(): string

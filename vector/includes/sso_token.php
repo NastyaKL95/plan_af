@@ -172,3 +172,120 @@ function ecosystem_person_names_match(string $left, string $right): bool
 
     return true;
 }
+
+/** Адрес общего входа: только https, без хвоста «/», хост в нижнем регистре. */
+function ecosystem_sso_normalize_https_url(string $value): string
+{
+    $value = trim($value);
+    if (preg_match('#^https://#i', $value) !== 1) {
+        return '';
+    }
+    $parts = parse_url($value);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return '';
+    }
+    $host = strtolower((string) $parts['host']);
+    $port = isset($parts['port']) ? (int) $parts['port'] : 0;
+    $path = (string) ($parts['path'] ?? '/');
+    if ($path === '') {
+        $path = '/';
+    }
+    if ($path !== '/' && str_ends_with($path, '/')) {
+        $path = rtrim($path, '/');
+    }
+    $query = [];
+    if (isset($parts['query']) && $parts['query'] !== '') {
+        parse_str((string) $parts['query'], $query);
+    }
+    ksort($query);
+    $built = 'https://' . $host;
+    if ($port > 0 && $port !== 443) {
+        $built .= ':' . $port;
+    }
+    $built .= $path;
+    if ($query !== []) {
+        $built .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+    }
+
+    return $built;
+}
+
+function ecosystem_sso_urls_match(string $left, string $right): bool
+{
+    $a = ecosystem_sso_normalize_https_url($left);
+    $b = ecosystem_sso_normalize_https_url($right);
+    if ($a === '' || $b === '') {
+        return false;
+    }
+
+    return strlen($a) === strlen($b) && hash_equals($b, $a);
+}
+
+/** Совпадение адреса возврата после выхода. Параметр sso=skip не мешает сравнению. */
+function ecosystem_sso_logout_return_allowed(string $return, string $expected): bool
+{
+    if (ecosystem_sso_urls_match($return, $expected)) {
+        return true;
+    }
+    $a = ecosystem_sso_without_skip($return);
+    $b = ecosystem_sso_without_skip($expected);
+
+    return $a !== '' && $b !== '' && strlen($a) === strlen($b) && hash_equals($b, $a);
+}
+
+function ecosystem_sso_without_skip(string $url): string
+{
+    $url = ecosystem_sso_normalize_https_url($url);
+    if ($url === '') {
+        return '';
+    }
+    $parts = parse_url($url);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return '';
+    }
+    $query = [];
+    if (isset($parts['query']) && $parts['query'] !== '') {
+        parse_str((string) $parts['query'], $query);
+    }
+    if (($query['sso'] ?? null) === 'skip') {
+        unset($query['sso']);
+    }
+    ksort($query);
+    $built = 'https://' . strtolower((string) $parts['host']);
+    if (isset($parts['port'])) {
+        $built .= ':' . (int) $parts['port'];
+    }
+    $built .= (string) ($parts['path'] ?? '/');
+    if ($query !== []) {
+        $built .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+    }
+
+    return $built;
+}
+
+/** После выхода не запускать общий вход сразу снова. */
+function ecosystem_sso_with_skip(string $url): string
+{
+    $url = ecosystem_sso_normalize_https_url($url);
+    if ($url === '') {
+        return '';
+    }
+    $parts = parse_url($url);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return '';
+    }
+    $query = [];
+    if (isset($parts['query']) && $parts['query'] !== '') {
+        parse_str((string) $parts['query'], $query);
+    }
+    $query['sso'] = 'skip';
+    ksort($query);
+    $built = 'https://' . strtolower((string) $parts['host']);
+    if (isset($parts['port'])) {
+        $built .= ':' . (int) $parts['port'];
+    }
+    $built .= (string) ($parts['path'] ?? '/');
+    $built .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+
+    return $built;
+}

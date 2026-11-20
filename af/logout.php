@@ -8,7 +8,7 @@ require_once __DIR__ . '/includes/sso.php';
 audit_fund_session_start();
 
 if (!audit_fund_is_logged_in()) {
-    header('Location: index.php');
+    header('Location: index.php?sso=skip');
     exit;
 }
 
@@ -28,22 +28,10 @@ if ($userId > 0) {
 audit_fund_clear_remember_cookie();
 
 $_SESSION = [];
+audit_fund_sso_expire_session_cookie();
 
-if (ini_get('session.use_cookies')) {
-    $params = session_get_cookie_params();
-    setcookie(
-        session_name(),
-        '',
-        time() - 42000,
-        $params['path'],
-        $params['domain'],
-        $params['secure'],
-        $params['httponly']
-    );
-}
-
-$peerLogout = audit_fund_sso_https_url((string) (audit_fund_db_config()['sso_peer_logout_url'] ?? ''));
-$returnTo = audit_fund_sso_https_url((string) (audit_fund_db_config()['sso_logout_return_url'] ?? ''));
+$peerLogout = audit_fund_sso_https_url((string) (audit_fund_sso_cfg()['sso_peer_logout_url'] ?? ''));
+$returnTo = audit_fund_sso_https_url((string) (audit_fund_sso_cfg()['sso_logout_return_url'] ?? ''));
 $logoutToken = (audit_fund_sso_ready() && $peerLogout !== '' && $returnTo !== '')
     ? audit_fund_sso_issue_logout_token()
     : '';
@@ -56,5 +44,5 @@ if ($logoutToken !== '') {
     ], '', '&', PHP_QUERY_RFC3986));
     exit;
 }
-header('Location: index.php');
+header('Location: index.php?sso=skip');
 exit;

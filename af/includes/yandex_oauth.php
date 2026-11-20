@@ -39,7 +39,7 @@ function audit_fund_yandex_relay_ready(): bool
     if (empty(audit_fund_yandex_config()['enabled']) || !audit_fund_sso_ready()) {
         return false;
     }
-    $start = trim((string) (audit_fund_db_config()['sso_peer_yandex_start_url'] ?? ''));
+    $start = trim((string) (audit_fund_sso_cfg()['sso_peer_yandex_start_url'] ?? ''));
 
     return preg_match('#^https://#', $start) === 1;
 }

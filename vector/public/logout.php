@@ -12,10 +12,7 @@ $logoutToken = ($wasLoggedIn && planner_sso_ready() && $peerLogout !== '' && $re
     : '';
 
 $_SESSION = [];
-if (ini_get('session.use_cookies')) {
-    $p = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
-}
+planner_sso_expire_session_cookie();
 session_destroy();
 if ($logoutToken !== '') {
     header('Location: ' . $peerLogout . '?' . http_build_query([
@@ -24,4 +21,4 @@ if ($logoutToken !== '') {
     ], '', '&', PHP_QUERY_RFC3986), true, 302);
     exit;
 }
-header('Location: ' . planner_url('/login.php'), true, 302);
+header('Location: ' . planner_public_site_url('/login.php?sso=skip'), true, 302);

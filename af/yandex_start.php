@@ -36,7 +36,7 @@ if (audit_fund_yandex_relay_ready()) {
     $state = ecosystem_sso_random_state();
     $_SESSION['audit_fund_sso_state'] = $state;
     $_SESSION['audit_fund_sso_state_ts'] = time();
-    $start = audit_fund_sso_https_url((string) (audit_fund_db_config()['sso_peer_yandex_start_url'] ?? ''));
+    $start = audit_fund_sso_https_url((string) (audit_fund_sso_cfg()['sso_peer_yandex_start_url'] ?? ''));
     $sep = str_contains($start, '?') ? '&' : '?';
     header('Location: ' . $start . $sep . http_build_query([
         'relay' => 'af',

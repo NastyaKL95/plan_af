@@ -9,14 +9,41 @@ require_once __DIR__ . '/sso_token.php';
  * Подключать после auth.php.
  */
 
+function audit_fund_sso_defaults(): array
+{
+    return [
+        'sso_enabled' => true,
+        'sso_secret' => 'af5f7b16f09a100d8e3588020c3f3ed198a559afffb92c2b7a740df8fb5feea6',
+        'sso_self_consume_url' => 'https://af.zabedu.ru/sso_consume.php',
+        'sso_peer_check_url' => 'https://planiro75.ru/public/sso/check.php',
+        'sso_peer_consume_url' => 'https://planiro75.ru/public/sso/consume.php',
+        'sso_peer_logout_url' => 'https://planiro75.ru/public/sso/logout.php',
+        'sso_peer_yandex_start_url' => 'https://planiro75.ru/public/auth/yandex_start.php',
+        'sso_logout_return_url' => 'https://af.zabedu.ru/index.php',
+        'sso_logout_accept_return' => 'https://planiro75.ru/public/login.php',
+    ];
+}
+
+function audit_fund_sso_cfg(): array
+{
+    $cfg = audit_fund_db_config();
+    $out = [];
+    foreach (audit_fund_sso_defaults() as $key => $value) {
+        $current = $cfg[$key] ?? null;
+        $out[$key] = ($current === null || $current === '') ? $value : $current;
+    }
+
+    return $out;
+}
+
 function audit_fund_sso_secret(): string
 {
-    return trim((string) (audit_fund_db_config()['sso_secret'] ?? ''));
+    return trim((string) (audit_fund_sso_cfg()['sso_secret'] ?? ''));
 }
 
 function audit_fund_sso_ready(): bool
 {
-    $cfg = audit_fund_db_config();
+    $cfg = audit_fund_sso_cfg();
     if (empty($cfg['sso_enabled']) || strlen(audit_fund_sso_secret()) < 32) {
         return false;
     }
@@ -60,8 +87,8 @@ function audit_fund_sso_begin_peer_check(): void
     if (!audit_fund_sso_ready()) {
         return;
     }
-    $return = audit_fund_sso_https_url((string) (audit_fund_db_config()['sso_self_consume_url'] ?? ''));
-    $check = audit_fund_sso_https_url((string) (audit_fund_db_config()['sso_peer_check_url'] ?? ''));
+    $return = audit_fund_sso_https_url((string) (audit_fund_sso_cfg()['sso_self_consume_url'] ?? ''));
+    $check = audit_fund_sso_https_url((string) (audit_fund_sso_cfg()['sso_peer_check_url'] ?? ''));
     if ($return === '' || $check === '') {
         return;
     }
@@ -88,6 +115,26 @@ function audit_fund_sso_expected_state(): ?string
     }
 
     return $state;
+}
+
+function audit_fund_sso_expire_session_cookie(): void
+{
+    if (!ini_get('session.use_cookies')) {
+        return;
+    }
+    $params = session_get_cookie_params();
+    $sameSite = (string) ($params['samesite'] ?? 'Lax');
+    if (!in_array($sameSite, ['Lax', 'Strict', 'None'], true)) {
+        $sameSite = 'Lax';
+    }
+    setcookie(session_name(), '', [
+        'expires' => time() - 42000,
+        'path' => ($params['path'] ?? '') !== '' ? (string) $params['path'] : '/',
+        'domain' => (string) ($params['domain'] ?? ''),
+        'secure' => !empty($params['secure']),
+        'httponly' => !isset($params['httponly']) || !empty($params['httponly']),
+        'samesite' => $sameSite,
+    ]);
 }
 
 /**

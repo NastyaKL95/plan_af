@@ -75,4 +75,32 @@ foreach ($pairs as [$left, $right, $expect]) {
     }
 }
 
+$consume = 'https://af.zabedu.ru/sso_consume.php';
+if (!ecosystem_sso_urls_match($consume, 'HTTPS://AF.ZABEDU.RU/sso_consume.php/')) {
+    fwrite(STDERR, "consume url was not normalized\n");
+    exit(1);
+}
+if (ecosystem_sso_urls_match($consume, 'https://evil.example/sso_consume.php')) {
+    fwrite(STDERR, "foreign consume url was accepted\n");
+    exit(1);
+}
+if (ecosystem_sso_normalize_https_url('http://af.zabedu.ru/sso_consume.php') !== '') {
+    fwrite(STDERR, "http return was accepted\n");
+    exit(1);
+}
+$home = 'https://af.zabedu.ru/index.php';
+$homeSkip = 'https://af.zabedu.ru/index.php?sso=skip';
+if (!ecosystem_sso_logout_return_allowed($home, $homeSkip) || !ecosystem_sso_logout_return_allowed($homeSkip, $home)) {
+    fwrite(STDERR, "logout return with sso=skip was rejected\n");
+    exit(1);
+}
+if (ecosystem_sso_logout_return_allowed('https://af.zabedu.ru/schedule.php', $home)) {
+    fwrite(STDERR, "logout return to another page was accepted\n");
+    exit(1);
+}
+if (ecosystem_sso_with_skip($home) !== $homeSkip || ecosystem_sso_with_skip($homeSkip) !== $homeSkip) {
+    fwrite(STDERR, "sso=skip was not applied\n");
+    exit(1);
+}
+
 echo "sso token ok\n";
