@@ -305,6 +305,16 @@ function audit_fund_username_from_email(PDO $pdo, string $email): string
     return $local . bin2hex(random_bytes(3));
 }
 
+function audit_fund_yandex_email_allowed(string $email): bool
+{
+    $allowed = audit_fund_db_config()['yandex_allowed_domains'] ?? ['iro75.ru'];
+    if (!is_array($allowed) || $allowed === []) {
+        $allowed = ['iro75.ru'];
+    }
+
+    return ecosystem_email_domain_allowed($email, $allowed);
+}
+
 /**
  * Войти или создать пользователя по подтверждённой почте соседнего сайта / Яндекса.
  *
@@ -317,6 +327,9 @@ function audit_fund_external_login(string $email, string $name, string $provider
         return ['ok' => false, 'error' => 'sso_bad'];
     }
     $provider = $provider === 'yandex' ? 'yandex' : '';
+    if ($provider === 'yandex' && !audit_fund_yandex_email_allowed($email)) {
+        return ['ok' => false, 'error' => 'yandex_email_domain_not_allowed'];
+    }
     $subject = $provider === 'yandex' ? trim($subject) : '';
     $displayName = audit_fund_safe_display_name($name);
 
@@ -464,7 +477,7 @@ function audit_fund_auth_notice(string $code): string
         'yandex_registration_closed' => 'Регистрация закрыта. Войти через Яндекс можно, если учётная запись уже есть.',
         'yandex_email_missing' => 'Яндекс не передал адрес почты. Разрешите доступ к email и повторите вход.',
         'yandex_pending_approval' => 'Аккаунт в Векторе создан и ждёт активации администратором.',
-        'yandex_email_domain_not_allowed' => 'Для входа в Вектор нужна почта на домене iro75.ru.',
+        'yandex_email_domain_not_allowed' => 'Войти через Яндекс можно только с почтой на домене iro75.ru.',
         'yandex_login_failed' => 'Не удалось выполнить вход через Яндекс.',
         'maintenance' => 'Сейчас техническое обслуживание. Новый вход временно закрыт.',
         'sso_pending' => 'Аккаунт в Векторе создан и ждёт активации администратором.',

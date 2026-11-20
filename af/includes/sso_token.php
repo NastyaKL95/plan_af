@@ -118,6 +118,27 @@ function ecosystem_sso_random_state(): string
     return bin2hex(random_bytes(16));
 }
 
+/** Почта принадлежит одному из доменов. Сравнение домена без учёта регистра. */
+function ecosystem_email_domain_allowed(string $email, array $domains): bool
+{
+    $email = strtolower(trim($email));
+    if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+        return false;
+    }
+    $at = strrchr($email, '@');
+    $domain = $at === false ? '' : strtolower(substr($at, 1));
+    if ($domain === '') {
+        return false;
+    }
+    foreach ($domains as $item) {
+        if (strtolower(trim((string) $item)) === $domain) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /**
  * Слова ФИО длиннее двух букв: инициалы вроде «Д.С.» не считаются.
  *

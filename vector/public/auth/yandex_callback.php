@@ -153,7 +153,10 @@ try {
 }
 
 $subject = trim((string) ($profile['id'] ?? $profile['sub'] ?? ''));
-$email = trim((string) ($profile['default_email'] ?? ''));
+$email = strtolower(trim((string) ($profile['default_email'] ?? '')));
+if (!planner_registration_email_allowed($email)) {
+    yandex_callback_fail('yandex_email_domain_not_allowed');
+}
 $name = trim((string) ($profile['real_name'] ?? ''));
 if ($name === '') {
     $name = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')));

@@ -285,6 +285,9 @@ function planner_sso_accept_identity(array $profile): array
     }
     $provider = (string) ($profile['provider'] ?? '') === 'yandex' ? 'yandex' : '';
     $subject = $provider === 'yandex' ? trim((string) ($profile['subject'] ?? '')) : '';
+    if ($provider === 'yandex' && !planner_registration_email_allowed($email)) {
+        return ['ok' => false, 'error' => 'sso_email_domain'];
+    }
     $hasOauth = planner_table_has_column('users', 'oauth_provider') && planner_table_has_column('users', 'oauth_subject');
     $cols = 'id, organization_id, email, name, role'
         . (planner_table_has_column('users', 'department_id') ? ', department_id' : '')

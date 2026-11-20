@@ -41,6 +41,8 @@ function audit_fund_db_config(): array
         'yandex_client_secret' => '70cd9594f7f543ca9bac07fe54d8fbac',
         'yandex_redirect_uri' => 'https://af.zabedu.ru/yandex_callback.php',
         'yandex_scope' => 'login:email login:info',
+        /** Вход через Яндекс только с этих доменов почты. */
+        'yandex_allowed_domains' => ['iro75.ru'],
         /** Общий секрет с Вектором. Менять только одновременно на обоих сайтах. */
         'sso_enabled' => true,
         'sso_secret' => 'af5f7b16f09a100d8e3588020c3f3ed198a559afffb92c2b7a740df8fb5feea6',

@@ -103,4 +103,21 @@ if (ecosystem_sso_with_skip($home) !== $homeSkip || ecosystem_sso_with_skip($hom
     exit(1);
 }
 
+if (!ecosystem_email_domain_allowed('User@IRO75.ru', ['iro75.ru'])) {
+    fwrite(STDERR, "iro75.ru address was rejected\n");
+    exit(1);
+}
+if (ecosystem_email_domain_allowed('user@yandex.ru', ['iro75.ru'])) {
+    fwrite(STDERR, "yandex.ru address was accepted\n");
+    exit(1);
+}
+if (ecosystem_email_domain_allowed('user@iro75.ru.evil.com', ['iro75.ru'])) {
+    fwrite(STDERR, "lookalike domain was accepted\n");
+    exit(1);
+}
+if (ecosystem_email_domain_allowed('', ['iro75.ru'])) {
+    fwrite(STDERR, "empty email was accepted\n");
+    exit(1);
+}
+
 echo "sso token ok\n";
