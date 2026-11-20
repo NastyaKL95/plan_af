@@ -57,4 +57,22 @@ if (is_file($other) && md5_file($other) !== md5_file(__DIR__ . '/../includes/sso
     exit(1);
 }
 
+$pairs = [
+    ['Клопова Анастасия Владимировна', 'Клопова Анастасия Владимировна', true],
+    ['Людмила Портнова', 'Портнова Людмила Константиновна', true],
+    ['Татьяна Рыбак', 'Рыбак Татьяна Георгиевна', true],
+    ['Светлана Кузьмина', 'Светлана Владимировна Кузьмина', true],
+    ['Светлана Дабаевна', 'Цыдыпова Светлана Дабаевна', true],
+    ['Кузьмин Д.С.', 'Кузьмин Денис Сергеевич', false],
+    ['Иван', 'Иван Иванов', false],
+    ['', 'Клопова Анастасия', false],
+];
+foreach ($pairs as [$left, $right, $expect]) {
+    $got = ecosystem_person_names_match($left, $right);
+    if ($got !== $expect) {
+        fwrite(STDERR, "name match failed: {$left} / {$right}\n");
+        exit(1);
+    }
+}
+
 echo "sso token ok\n";

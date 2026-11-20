@@ -297,73 +297,9 @@ function planner_sso_accept_identity(array $profile): array
             return ['ok' => true];
         }
 
-        if ($provider !== 'yandex' || $subject === '') {
-            return ['ok' => false, 'error' => 'sso_no_account'];
-        }
-        if (!$hasOauth) {
-            return ['ok' => false, 'error' => 'sso_schema'];
-        }
-        if (!planner_registration_email_allowed($email)) {
-            return ['ok' => false, 'error' => 'sso_email_domain'];
-        }
-        if (!planner_registration_public_open()) {
-            return ['ok' => false, 'error' => 'sso_no_account'];
-        }
-        $st = db()->query('SELECT id FROM organizations ORDER BY id LIMIT 1');
-        $orgRow = $st ? $st->fetch(PDO::FETCH_ASSOC) : false;
-        if (!$orgRow) {
-            return ['ok' => false, 'error' => 'sso_no_account'];
-        }
-        $orgId = (int) $orgRow['id'];
-        if (planner_maintenance_is_enabled($orgId)) {
-            return ['ok' => false, 'error' => 'maintenance'];
-        }
-        $passwordStub = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
-        if ($passwordStub === false) {
-            return ['ok' => false, 'error' => 'sso_bad'];
-        }
-        $hasReg = planner_registration_schema_ready();
-        $hasDept = planner_table_has_column('users', 'department_id');
-        db()->beginTransaction();
-        if ($hasDept && $hasReg) {
-            $st = db()->prepare(
-                'INSERT INTO users (organization_id, email, password_hash, email_verified_at, account_status, name, role, department_id, oauth_provider, oauth_subject)
-                 VALUES (?,?,?,NOW(),\'pending_approval\',?,?,NULL,?,?)'
-            );
-            $st->execute([$orgId, $email, $passwordStub, $name, 'member', 'yandex', $subject]);
-        } elseif ($hasDept) {
-            $st = db()->prepare(
-                'INSERT INTO users (organization_id, email, password_hash, name, role, department_id, oauth_provider, oauth_subject)
-                 VALUES (?,?,?,?,?,NULL,?,?)'
-            );
-            $st->execute([$orgId, $email, $passwordStub, $name, 'member', 'yandex', $subject]);
-        } elseif ($hasReg) {
-            $st = db()->prepare(
-                'INSERT INTO users (organization_id, email, password_hash, email_verified_at, account_status, name, role, oauth_provider, oauth_subject)
-                 VALUES (?,?,?,NOW(),\'pending_approval\',?,?,?,?)'
-            );
-            $st->execute([$orgId, $email, $passwordStub, $name, 'member', 'yandex', $subject]);
-        } else {
-            $st = db()->prepare(
-                'INSERT INTO users (organization_id, email, password_hash, name, role, oauth_provider, oauth_subject)
-                 VALUES (?,?,?,?,?,?,?)'
-            );
-            $st->execute([$orgId, $email, $passwordStub, $name, 'member', 'yandex', $subject]);
-        }
-        $userId = (int) db()->lastInsertId();
-        try {
-            log_activity($orgId, $userId, 'sso_login', 'user', $userId, 'Учётная запись создана общим входом из Аудиторного фонда');
-        } catch (Throwable) {
-        }
-        db()->commit();
-        if ($hasReg) {
-            planner_registration_notify_admins_pending($orgId, $userId);
-
-            return ['ok' => false, 'error' => 'sso_pending'];
-        }
-        planner_sso_start_session($userId);
-
-        return ['ok' => true];
+        // Пользователи аудиторного фонда уже есть в Векторе. Новую учётку отсюда не создаём:
+        // ищем существующую по идентификатору Яндекса или по той же почте.
+        return ['ok' => false, 'error' => 'sso_no_account'];
     } catch (Throwable $e) {
         if (db()->inTransaction()) {
             db()->rollBack();

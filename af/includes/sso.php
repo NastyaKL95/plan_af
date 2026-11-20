@@ -294,18 +294,42 @@ function audit_fund_external_login(string $email, string $name, string $provider
             $user = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         }
         if ($user === null) {
-            $stmt = $pdo->prepare('SELECT ' . $cols . ' FROM users WHERE LOWER(email) = ? LIMIT 1');
+            $stmt = $pdo->prepare('SELECT ' . $cols . ' FROM users WHERE email IS NOT NULL AND LOWER(email) = ? LIMIT 1');
             $stmt->execute([$email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-            if ($user && $hasOauth && $provider === 'yandex' && $subject !== '') {
-                $currProvider = trim((string) ($user['oauth_provider'] ?? ''));
-                $currSubject = trim((string) ($user['oauth_subject'] ?? ''));
-                if ($currProvider !== '' && ($currProvider !== 'yandex' || ($currSubject !== '' && $currSubject !== $subject))) {
-                    return ['ok' => false, 'error' => 'yandex_oauth_conflict'];
+        }
+        if ($user === null && $displayName !== null) {
+            $stmt = $pdo->query('SELECT ' . $cols . ' FROM users WHERE is_active = 1');
+            $candidates = [];
+            if ($stmt !== false) {
+                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    $knownName = trim((string) ($row['display_name'] ?? ''));
+                    if ($knownName !== '' && ecosystem_person_names_match($displayName, $knownName)) {
+                        $candidates[] = $row;
+                    }
                 }
-                if ($currProvider !== 'yandex' || $currSubject !== $subject) {
-                    $upd = $pdo->prepare('UPDATE users SET oauth_provider = ?, oauth_subject = ? WHERE id = ?');
-                    $upd->execute(['yandex', $subject, (int) $user['id']]);
+            }
+            if (count($candidates) === 1) {
+                $user = $candidates[0];
+            }
+        }
+        if ($user && $hasOauth && $provider === 'yandex' && $subject !== '') {
+            $currProvider = trim((string) ($user['oauth_provider'] ?? ''));
+            $currSubject = trim((string) ($user['oauth_subject'] ?? ''));
+            if ($currProvider !== '' && ($currProvider !== 'yandex' || ($currSubject !== '' && $currSubject !== $subject))) {
+                return ['ok' => false, 'error' => 'yandex_oauth_conflict'];
+            }
+            if ($currProvider !== 'yandex' || $currSubject !== $subject) {
+                $upd = $pdo->prepare('UPDATE users SET oauth_provider = ?, oauth_subject = ? WHERE id = ?');
+                $upd->execute(['yandex', $subject, (int) $user['id']]);
+            }
+            if (trim((string) ($user['email'] ?? '')) === '') {
+                $taken = $pdo->prepare('SELECT id FROM users WHERE LOWER(email) = ? AND id <> ? LIMIT 1');
+                $taken->execute([$email, (int) $user['id']]);
+                if ($taken->fetch(PDO::FETCH_ASSOC) === false) {
+                    $upd = $pdo->prepare('UPDATE users SET email = ? WHERE id = ?');
+                    $upd->execute([$email, (int) $user['id']]);
+                    $user['email'] = $email;
                 }
             }
         }
@@ -399,7 +423,7 @@ function audit_fund_auth_notice(string $code): string
         'sso_pending' => 'Аккаунт в Векторе создан и ждёт активации администратором.',
         'sso_bad' => 'Не удалось подтвердить общий вход. Войдите логином и паролем.',
         'sso_denied' => 'Сессия в соседнем сервисе есть, но вход туда сейчас запрещён.',
-        'sso_no_account' => 'Учётная запись с этой почтой не найдена.',
+        'sso_no_account' => 'Учётная запись с этой почтой Яндекса не найдена. В Векторе и в аудиторном фонде должна быть одна и та же почта.',
         'sso_not_configured' => 'Общий вход с Вектором не настроен.',
         'inactive' => 'Учётная запись отключена. Для доступа обратитесь к администратору.',
     ];

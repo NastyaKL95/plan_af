@@ -117,3 +117,58 @@ function ecosystem_sso_random_state(): string
 {
     return bin2hex(random_bytes(16));
 }
+
+/**
+ * Слова ФИО длиннее двух букв: инициалы вроде «Д.С.» не считаются.
+ *
+ * @return list<string>
+ */
+function ecosystem_person_name_tokens(string $name): array
+{
+    $name = mb_strtolower(trim($name), 'UTF-8');
+    $name = str_replace(['ё', 'Ё'], ['е', 'е'], $name);
+    $name = preg_replace('/[^\p{L}]+/u', ' ', $name) ?? '';
+    $parts = preg_split('/\s+/u', trim($name), -1, PREG_SPLIT_NO_EMPTY);
+    if ($parts === false) {
+        return [];
+    }
+    $tokens = [];
+    foreach ($parts as $part) {
+        if (mb_strlen($part, 'UTF-8') >= 3) {
+            $tokens[$part] = true;
+        }
+    }
+    $list = array_keys($tokens);
+    sort($list);
+
+    return $list;
+}
+
+/**
+ * Одно и то же ФИО, если набор слов совпал или отличается только отчеством.
+ * Одной фамилии недостаточно.
+ */
+function ecosystem_person_names_match(string $left, string $right): bool
+{
+    $a = ecosystem_person_name_tokens($left);
+    $b = ecosystem_person_name_tokens($right);
+    if ($a === [] || $b === []) {
+        return false;
+    }
+    if ($a === $b) {
+        return true;
+    }
+    $small = count($a) <= count($b) ? $a : $b;
+    $large = count($a) <= count($b) ? $b : $a;
+    if (count($small) < 2 || count($large) - count($small) > 1) {
+        return false;
+    }
+    $have = array_flip($large);
+    foreach ($small as $token) {
+        if (!isset($have[$token])) {
+            return false;
+        }
+    }
+
+    return true;
+}
