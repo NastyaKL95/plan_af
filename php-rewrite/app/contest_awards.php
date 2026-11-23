@@ -116,11 +116,19 @@ function compute_ranked_participants(PDO $pdo, int $contestId): array
 
     $means = contest_submission_score_means($pdo, $contestId);
 
+    $rankingStageSet = array_flip($rankingStageIds);
     $rows = [];
     foreach ($participants as $p) {
         $uid = (int) $p['user_id'];
         $total = participant_ranking_total($subsByUser, $rankingStageIds, $means, $uid);
-        $rows[] = ['participant' => $p, 'total' => $total, 'user_id' => $uid];
+        $hasScores = false;
+        foreach ($subsByUser[$uid] ?? [] as $s) {
+            if (isset($rankingStageSet[(int) $s['stage_id']]) && isset($means[(int) $s['id']])) {
+                $hasScores = true;
+                break;
+            }
+        }
+        $rows[] = ['participant' => $p, 'total' => $total, 'user_id' => $uid, 'has_scores' => $hasScores];
     }
     usort($rows, static function (array $a, array $b): int {
         $diff = (float) $a['total'] - (float) $b['total'];
@@ -148,53 +156,101 @@ function compute_ranked_participants(PDO $pdo, int $contestId): array
             'participant' => $row['participant'],
             'place' => $place,
             'total' => $total,
+            'has_scores' => $row['has_scores'],
         ];
     }
 
     return $ranked;
 }
 
+/**
+ * Пересчитывает итоговые места. Участники без оценок на зачётных этапах мест не получают;
+ * ручные места сохраняются, а автоматические их пропускают (без дублей мест).
+ * Возвращает число записей в итогах или -1, если нет ни одного зачётного этапа (итоги не трогаются).
+ */
 function replace_awards_from_ranking(PDO $pdo, int $contestId): int
 {
-    $stmt = $pdo->prepare(
-        'SELECT participant_id, place, award_description FROM awards WHERE contest_id = :cid AND is_manual_override = 1'
-    );
-    $stmt->execute(['cid' => $contestId]);
-    $manual = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $manual[(int) $row['participant_id']] = [
-            'place' => (int) $row['place'],
-            'award_description' => trim((string) $row['award_description']),
-        ];
+    if (contest_ranking_stage_ids($pdo, $contestId) === []) {
+        return -1;
     }
-    $pdo->prepare('DELETE FROM awards WHERE contest_id = :cid')->execute(['cid' => $contestId]);
-    $ranked = compute_ranked_participants($pdo, $contestId);
-    $ins = $pdo->prepare(
-        'INSERT INTO awards (participant_id, contest_id, place, award_description, is_manual_override)
-         VALUES (:pid, :cid, :place, :descr, :manual)'
-    );
-    $n = 0;
-    foreach ($ranked as $r) {
-        $p = $r['participant'];
-        $pid = (int) $p['id'];
-        if (isset($manual[$pid])) {
+
+    $ownTx = !$pdo->inTransaction();
+    if ($ownTx) {
+        $pdo->beginTransaction();
+    }
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT a.participant_id, a.place, a.award_description
+             FROM awards a
+             INNER JOIN contest_participants cp ON cp.id = a.participant_id AND cp.contest_id = a.contest_id
+             WHERE a.contest_id = :cid AND a.is_manual_override = 1
+             FOR UPDATE'
+        );
+        $stmt->execute(['cid' => $contestId]);
+        $manual = [];
+        $manualPlaces = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $manual[(int) $row['participant_id']] = [
+                'place' => (int) $row['place'],
+                'award_description' => trim((string) $row['award_description']),
+            ];
+            $manualPlaces[(int) $row['place']] = true;
+        }
+
+        $pdo->prepare('DELETE FROM awards WHERE contest_id = :cid')->execute(['cid' => $contestId]);
+        $ins = $pdo->prepare(
+            'INSERT INTO awards (participant_id, contest_id, place, award_description, is_manual_override)
+             VALUES (:pid, :cid, :place, :descr, :manual)'
+        );
+        $n = 0;
+        foreach ($manual as $pid => $m) {
             $ins->execute([
                 'pid' => $pid,
                 'cid' => $contestId,
-                'place' => $manual[$pid]['place'],
-                'descr' => $manual[$pid]['award_description'] !== '' ? $manual[$pid]['award_description'] : null,
+                'place' => $m['place'],
+                'descr' => $m['award_description'] !== '' ? $m['award_description'] : null,
                 'manual' => 1,
             ]);
-        } else {
+            $n++;
+        }
+
+        $nextPlace = 1;
+        $prevTotal = null;
+        $groupPlace = 0;
+        $groupSize = 0;
+        foreach (compute_ranked_participants($pdo, $contestId) as $r) {
+            $pid = (int) $r['participant']['id'];
+            if (isset($manual[$pid]) || empty($r['has_scores'])) {
+                continue;
+            }
+            $total = (float) $r['total'];
+            if ($prevTotal === null || $total < $prevTotal - IRO_RANKING_TOTAL_EPS) {
+                $nextPlace += $groupSize;
+                while (isset($manualPlaces[$nextPlace])) {
+                    $nextPlace++;
+                }
+                $groupPlace = $nextPlace;
+                $groupSize = 0;
+                $prevTotal = $total;
+            }
+            $groupSize++;
             $ins->execute([
                 'pid' => $pid,
                 'cid' => $contestId,
-                'place' => $r['place'],
+                'place' => $groupPlace,
                 'descr' => null,
                 'manual' => 0,
             ]);
+            $n++;
         }
-        $n++;
+        if ($ownTx) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($ownTx) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
 
     return $n;
