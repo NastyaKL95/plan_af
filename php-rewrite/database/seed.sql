@@ -11,12 +11,12 @@ ON DUPLICATE KEY UPDATE slug = VALUES(slug), name = VALUES(name);
 -- Admin user
 -- Login: admin@iro.local
 -- Password: password
--- bcrypt ($2b$), проверяется в PHP через password_verify()
+-- bcrypt ($2y$), проверяется в PHP через password_verify()
 INSERT INTO users (id, email, password_hash, first_name, last_name, is_active, is_staff, is_superuser)
 VALUES (
   1,
   'admin@iro.local',
-  '$2b$10$fWK4HOxI/72avHz7UUwPZOzasp5dJxW7EkkOkRodrzwcXXvAGjP6O',
+  '$2y$10$/KR0NLvMMu3lxjGmk.zUbOYLk8iYkhCOJIfdaXs0.bpy8H5ftfQt2',
   'Админ',
   'Сайта',
   1,
