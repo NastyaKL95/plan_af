@@ -313,28 +313,17 @@
       var fp = $('filterProject');
       var fProj = $('fProject');
       var orderedProjects = sortProjectsForPicker(projects);
-      function projOptionHtml(p) {
-        var title = p.department_name ? ' title="' + escapeHtml(p.department_name) + '"' : '';
-        return '<option value="' + p.id + '"' + title + '>' + escapeHtml(projectOptionLabel(p)) + '</option>';
-      }
-      if (fp) {
-        fp.innerHTML =
-          '<option value="">Все проекты</option>' +
-          orderedProjects
-            .map(function (p) {
-              return projOptionHtml(p);
-            })
-            .join('');
-        if (projectParam) {
-          var hasProject = projects.some(function (p) {
-            return String(p.id) === String(projectParam);
-          });
-          if (hasProject) fp.value = String(projectParam);
+      fillProjectSelect(fp, orderedProjects, 'Все проекты');
+      if (fp && projectParam) {
+        var hasProject = projects.some(function (p) {
+          return String(p.id) === String(projectParam);
+        });
+        if (hasProject) {
+          fp.value = String(projectParam);
+          if (typeof window.bxCustomSelectSync === 'function') window.bxCustomSelectSync(fp);
         }
       }
-      if (fProj) {
-        fProj.innerHTML = orderedProjects.map(projOptionHtml).join('');
-      }
+      fillProjectSelect(fProj, orderedProjects, '');
       refillAssigneeOptions();
       fillParticipantSelects();
       refreshTemplatePick(taskTemplates);
@@ -399,7 +388,7 @@
       syncSavedViewScopeUi();
       var qtp = $('quickTaskProject');
       if (qtp && orderedProjects.length) {
-        qtp.innerHTML = orderedProjects.map(projOptionHtml).join('');
+        fillProjectSelect(qtp, orderedProjects, '');
         try {
           var sdp = localStorage.getItem('planner_quick_default_project');
           if (sdp && orderedProjects.some(function (p) {

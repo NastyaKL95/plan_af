@@ -315,6 +315,75 @@
     return [p.name || p.project_name || '', p.department_name || '', departmentShortName(p.department_name)].join(' ');
   }
 
+  function projectById(id) {
+    var sid = String(id || '');
+    if (!sid) return null;
+    for (var i = 0; i < projects.length; i++) {
+      if (String(projects[i].id) === sid) return projects[i];
+    }
+    return null;
+  }
+
+  /** Подпись поля «Проект» берётся из списка проектов, а не из текста option. */
+  function projectFieldLabel() {
+    var sel = $('fProject');
+    if (!sel || !sel.value) return '';
+    var project = projectById(sel.value);
+    if (project) return projectOptionLabel(project);
+    var opt = sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+    return opt ? (opt.textContent || '') : '';
+  }
+
+  function ensureProjectOption(sel, id) {
+    if (!sel) return null;
+    var sid = String(id || '');
+    if (!sid) return null;
+    var opt = null;
+    var i;
+    for (i = 0; i < sel.options.length; i++) {
+      if (String(sel.options[i].value) === sid) {
+        opt = sel.options[i];
+        break;
+      }
+    }
+    var project = projectById(sid);
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = sid;
+      sel.appendChild(opt);
+    }
+    var label = project ? projectOptionLabel(project) : (opt.textContent || '');
+    if (label) opt.textContent = label;
+    if (project && project.department_name) opt.title = String(project.department_name);
+    opt.selected = true;
+    sel.value = sid;
+    return opt;
+  }
+
+  function fillProjectSelect(select, items, emptyLabel) {
+    if (!select) return;
+    var previous = String(select.value || '');
+    while (select.firstChild) select.removeChild(select.firstChild);
+    if (emptyLabel) {
+      var empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = emptyLabel;
+      select.appendChild(empty);
+    }
+    (items || []).forEach(function (p) {
+      var opt = document.createElement('option');
+      opt.value = String(p.id);
+      opt.textContent = projectOptionLabel(p);
+      if (p.department_name) opt.title = String(p.department_name);
+      select.appendChild(opt);
+    });
+    if (previous) {
+      select.value = previous;
+      if (String(select.value) !== previous) ensureProjectOption(select, previous);
+    }
+    if (typeof window.bxCustomSelectSync === 'function') window.bxCustomSelectSync(select);
+  }
+
   function visibilityPillsHtml(t) {
     if (!t) return '';
     var out = '';
@@ -523,10 +592,7 @@
       return assigneeOpt ? assigneeOpt.textContent || 'Не назначен' : 'Не назначен';
     }
     if (role === 'project') {
-      var projectSel = $('fProject');
-      if (!projectSel || projectSel.selectedIndex < 0) return 'Выбрать проект';
-      var projectOpt = projectSel.options[projectSel.selectedIndex];
-      return projectOpt ? projectOpt.textContent || 'Выбрать проект' : 'Выбрать проект';
+      return projectFieldLabel() || 'Выбрать проект';
     }
     var items = selectedParticipantItems(role);
     var base = role === 'assistants' ? 'Выбрать соисполнителей' : 'Выбрать наблюдателей';
@@ -664,7 +730,8 @@
         if (participantRoleIsSingle(role)) {
           var pickedValue = item.getAttribute('data-value');
           if (pickedValue == null) return;
-          sel.value = String(pickedValue);
+          if (role === 'project') ensureProjectOption(sel, pickedValue);
+          else sel.value = String(pickedValue);
           updateParticipantSummary(role);
           closeParticipantPicker();
           return;
