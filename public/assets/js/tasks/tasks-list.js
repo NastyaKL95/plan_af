@@ -552,11 +552,14 @@
     } else if (role === 'project') {
       isEmpty = !($('fProject') && $('fProject').value);
       if (!btn.disabled) {
-        var projectOptTitle = $('fProject') && $('fProject').selectedIndex >= 0
-          ? $('fProject').options[$('fProject').selectedIndex].getAttribute('title') || ''
+        var projectSelForTitle = $('fProject');
+        var projectOptForTitle = projectSelForTitle && projectSelForTitle.selectedIndex >= 0
+          ? projectSelForTitle.options[projectSelForTitle.selectedIndex]
+          : null;
+        var projectOptTitle = projectOptForTitle && projectOptForTitle.getAttribute
+          ? projectOptForTitle.getAttribute('title') || ''
           : '';
         if (projectOptTitle && !isEmpty) btn.title = text + ' (' + projectOptTitle + ')';
-        else btn.removeAttribute('title');
       }
     } else {
       isEmpty = selectedParticipantItems(role).length === 0;

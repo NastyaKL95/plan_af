@@ -47,41 +47,24 @@
     sel.appendChild(opt);
   }
 
-  /** Редактировать проект может только постановщик (в режиме создания — доступно). */
+  /** Проект можно выбрать, если карточку вообще можно править. Вызывается только в этом случае. */
   function setTaskProjectFieldReadOnly(task) {
     var sel = $('fProject');
     var btn = $('btnProjectPicker');
-    var md = $('taskSplitModal');
-    var mode = md ? md.getAttribute('data-task-mode') : '';
-    if (mode === 'create') {
-      if (sel) sel.disabled = false;
-      if (btn) {
-        btn.disabled = false;
-        btn.removeAttribute('title');
-        btn.classList.remove('is-disabled');
-      }
-      if (typeof window.bxCustomSelectSync === 'function' && sel) window.bxCustomSelectSync(sel);
-      return;
-    }
-    var uid = currentUserId();
-    var authorId = task ? parseInt(task.author_id, 10) : 0;
-    var canEdit = uid > 0 && authorId > 0 && uid === authorId;
-    if (sel) sel.disabled = !canEdit;
+    if (sel) sel.disabled = false;
     if (btn) {
-      btn.disabled = !canEdit;
-      if (!canEdit) {
-        btn.setAttribute('title', 'Менять проект может только постановщик задачи');
-        btn.classList.add('is-disabled');
-      } else {
+      btn.disabled = false;
+      btn.classList.remove('is-disabled');
+      var lockTitle = btn.getAttribute('title') || '';
+      if (lockTitle === 'Менять проект может только постановщик задачи' || lockTitle === 'Нет прав на изменение') {
         btn.removeAttribute('title');
-        btn.classList.remove('is-disabled');
       }
     }
     if (typeof window.bxCustomSelectSync === 'function' && sel) window.bxCustomSelectSync(sel);
   }
 
   /**
-   * Поля карточки: правка только если may_edit (API). Проект при may_edit — только у постановщика (setTaskProjectFieldReadOnly).
+   * Поля карточки: правка только если may_edit (API). Проект выбирается вместе с остальными полями.
    * Режим create: всё включено, проект доступен будущему автору.
    */
   function applyTaskModalMayEdit(mayEdit, task) {
