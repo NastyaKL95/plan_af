@@ -2,9 +2,9 @@
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <h1 class="iro-page-title mb-0">Конкурсы</h1>
         <div class="d-flex flex-wrap gap-2">
-            <a href="/admin/contests/create" class="btn btn-primary rounded-pill px-4">Создать конкурс</a>
-            <a href="/admin/contests/create-link" class="btn btn-outline-primary rounded-pill px-4">Конкурс-ссылка</a>
             <?php if (!empty($isAdmin)): ?>
+                <a href="/admin/contests/create" class="btn btn-primary rounded-pill px-4">Создать конкурс</a>
+                <a href="/admin/contests/create-link" class="btn btn-outline-primary rounded-pill px-4">Конкурс-ссылка</a>
                 <a href="/admin/contests/archived" class="btn btn-outline-secondary rounded-pill px-4"><i class="bi bi-archive me-1"></i>Архив</a>
             <?php endif; ?>
         </div>
@@ -67,8 +67,9 @@
                                             <a href="/admin/contests/edit?id=<?= (int) $c['id'] ?>" class="btn btn-sm btn-primary rounded-pill">Изменить</a>
                                             <?php if (!empty($isAdmin)): ?>
                                                 <form method="post" action="/admin/contests/archive" class="d-inline"
-                                                      onsubmit="return confirm('В архив? Будут удалены все работы, оценки, участники, файлы и настройки этапов. Останутся только название, даты и файл Excel с полной статистикой (как при выгрузке «Статистика»). Это необратимо.');">
+                                                      onsubmit="var w = prompt('В архив? Будут удалены все работы, оценки, участники, файлы и настройки этапов. Останутся только название, даты и файл Excel с полной статистикой (как при выгрузке «Статистика»). Это необратимо.\n\nДля подтверждения введите слово АРХИВ'); if (w === null) return false; this.confirm_word.value = w; return true;">
                                                     <?= iro_csrf_field_html() ?>
+                                                    <input type="hidden" name="confirm_word" value="">
                                                     <input type="hidden" name="contest_id" value="<?= (int) $c['id'] ?>">
                                                     <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">В архив</button>
                                                 </form>

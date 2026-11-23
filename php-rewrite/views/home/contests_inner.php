@@ -24,7 +24,7 @@ $listHref = '?' . $listQs;
             <a href="<?= h($listHref) ?>"
                class="btn btn-outline-secondary rounded-end-pill px-3 iro-home-ajax <?= $viewMode === 'list' ? 'active' : '' ?>">Списком</a>
         </div>
-        <?php if (!empty($can_manage_contests_global)): ?>
+        <?php if (!empty($isAdmin)): ?>
             <a href="/admin/contests/create" class="btn btn-primary btn-sm px-3 rounded-pill">+ Новый конкурс</a>
             <a href="/admin/contests/create-link" class="btn btn-outline-primary btn-sm px-3 rounded-pill">+ Конкурс-ссылка</a>
         <?php endif; ?>

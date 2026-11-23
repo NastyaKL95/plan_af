@@ -1521,12 +1521,13 @@ function delete_stage_cascade(
     $stPath->execute(['sid' => $stageId]);
     $instr = trim((string) ($stPath->fetchColumn() ?: ''));
 
-    $doSql = static function () use ($pdo, $stageId): void {
+    $files = [];
+    $doSql = static function () use ($pdo, $stageId, &$files): void {
         $subStmt = $pdo->prepare('SELECT id FROM submissions WHERE stage_id = :sid');
         $subStmt->execute(['sid' => $stageId]);
         foreach (array_map('intval', array_column($subStmt->fetchAll(PDO::FETCH_ASSOC), 'id')) as $subId) {
             if ($subId > 0) {
-                iro_delete_submission_cascade($pdo, $subId);
+                iro_delete_submission_cascade($pdo, $subId, $files);
             }
         }
         $pdo->prepare('DELETE FROM criteria WHERE stage_id = :sid')->execute(['sid' => $stageId]);
@@ -1541,20 +1542,23 @@ function delete_stage_cascade(
         try {
             $doSql();
             $pdo->commit();
-            iro_delete_public_upload($instr);
         } catch (Throwable $e) {
             $pdo->rollBack();
             throw $e;
         }
     } else {
         $doSql();
-        if ($deferInstructionFiles !== null) {
-            if ($instr !== '') {
-                $deferInstructionFiles[] = $instr;
-            }
-        } else {
-            iro_delete_public_upload($instr);
-        }
+    }
+    if ($instr !== '') {
+        $files[] = $instr;
+    }
+    if (!$useOwnTransaction && $deferInstructionFiles !== null) {
+        array_push($deferInstructionFiles, ...$files);
+
+        return;
+    }
+    foreach ($files as $p) {
+        iro_delete_public_upload($p);
     }
 }
 

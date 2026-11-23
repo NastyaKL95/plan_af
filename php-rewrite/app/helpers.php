@@ -1320,24 +1320,36 @@ function iro_delete_public_upload(?string $webPath): void
     }
 }
 
-/** Удаление работы: вложения и основной файл с диска, затем строки в БД. */
-function iro_delete_submission_cascade(PDO $pdo, int $submissionId): void
+/**
+ * Удаление работы: строки в БД и файлы с диска. Если передан $deferFiles, пути файлов добавляются туда,
+ * чтобы вызывающий код удалил их только после успешного commit (иначе при откате файлы пропадут).
+ */
+function iro_delete_submission_cascade(PDO $pdo, int $submissionId, ?array &$deferFiles = null): void
 {
     $mainStmt = $pdo->prepare('SELECT file_path FROM submissions WHERE id = :id LIMIT 1');
     $mainStmt->execute(['id' => $submissionId]);
-    $mainPath = trim((string) ($mainStmt->fetchColumn() ?: ''));
+    $paths = [trim((string) ($mainStmt->fetchColumn() ?: ''))];
 
     $attStmt = $pdo->prepare('SELECT file_path FROM submission_attachments WHERE submission_id = :id');
     $attStmt->execute(['id' => $submissionId]);
     foreach ($attStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        iro_delete_public_upload(trim((string) ($row['file_path'] ?? '')));
+        $paths[] = trim((string) ($row['file_path'] ?? ''));
     }
 
     $pdo->prepare('DELETE FROM submission_attachments WHERE submission_id = :id')->execute(['id' => $submissionId]);
     $pdo->prepare('DELETE FROM submission_assigned_experts WHERE submission_id = :id')->execute(['id' => $submissionId]);
     $pdo->prepare('DELETE FROM evaluations WHERE submission_id = :id')->execute(['id' => $submissionId]);
-    iro_delete_public_upload($mainPath);
     $pdo->prepare('DELETE FROM submissions WHERE id = :id')->execute(['id' => $submissionId]);
+
+    $paths = array_values(array_filter($paths, static fn (string $p): bool => $p !== ''));
+    if ($deferFiles !== null) {
+        array_push($deferFiles, ...$paths);
+
+        return;
+    }
+    foreach ($paths as $p) {
+        iro_delete_public_upload($p);
+    }
 }
 
 /**

@@ -656,6 +656,10 @@ if ($uri === '/admin/contests/archive' && is_post()) {
         flash_set('danger', 'Не указан конкурс.');
         redirect('/admin/contests');
     }
+    if (mb_strtoupper(trim((string) ($_POST['confirm_word'] ?? ''))) !== 'АРХИВ') {
+        flash_set('danger', 'Архивация не подтверждена: нужно ввести слово «АРХИВ».');
+        redirect('/admin/contests');
+    }
     $result = contest_archive_execute($pdo, $archiveContestId);
     flash_set($result['ok'] ? 'success' : 'danger', $result['message']);
     redirect($result['ok'] ? '/admin/contests/archived' : '/admin/contests');
@@ -945,8 +949,8 @@ if ($uri === '/admin/api/user-picker') {
 
 if ($uri === '/admin/contests/create') {
     $uid = require_login();
-    if (!can_manage_contests_global($pdo, $uid)) {
-        flash_set('danger', 'Нет доступа');
+    if (!$isAdmin) {
+        flash_set('danger', 'Создавать конкурсы может только администратор сайта.');
         redirect('/');
     }
 
@@ -1086,8 +1090,8 @@ if ($uri === '/admin/contests/create') {
 
 if ($uri === '/admin/contests/create-link' || $uri === '/admin/contests/create-link/') {
     $uid = require_login();
-    if (!can_manage_contests_global($pdo, $uid)) {
-        flash_set('danger', 'Нет доступа');
+    if (!$isAdmin) {
+        flash_set('danger', 'Создавать конкурсы может только администратор сайта.');
         redirect('/');
     }
 

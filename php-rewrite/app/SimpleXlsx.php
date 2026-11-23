@@ -52,7 +52,7 @@ final class SimpleXlsx
         $sheetEntries = '';
         foreach ($this->sheets as $i => $sheet) {
             $n = $i + 1;
-            $name = htmlspecialchars($sheet['name'], ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $name = htmlspecialchars(self::xmlSafe((string) $sheet['name']), ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             $sheetEntries .= '<sheet name="' . $name . '" sheetId="' . $n . '" r:id="rId' . ($n + 1) . '"/>';
         }
         $zip->addFromString(
@@ -169,9 +169,15 @@ final class SimpleXlsx
         if (is_int($val) || is_float($val)) {
             return '<c r="' . $ref . '"' . $styleAttr . '><v>' . $val . '</v></c>';
         }
-        $t = htmlspecialchars((string) $val, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $t = htmlspecialchars(self::xmlSafe((string) $val), ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
         return '<c r="' . $ref . '"' . $styleAttr . ' t="inlineStr"><is><t xml:space="preserve">' . $t . '</t></is></c>';
+    }
+
+    /** Управляющие символы (кроме таба и переводов строк) недопустимы в XML и ломают файл Excel. */
+    private static function xmlSafe(string $s): string
+    {
+        return (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $s);
     }
 
     private function contentTypes(): string
