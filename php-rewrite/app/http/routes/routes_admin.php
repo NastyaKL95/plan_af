@@ -169,6 +169,14 @@ if ($uri === '/admin/partners/create') {
         if ($title === '') {
             $errors[] = 'Укажите название (подпись к логотипу).';
         }
+        if ($websiteUrl !== '') {
+            $normSite = iro_normalize_http_url($websiteUrl);
+            if ($normSite === null) {
+                $errors[] = 'Некорректный адрес сайта партнёра (нужен http/https).';
+            } else {
+                $websiteUrl = $normSite;
+            }
+        }
         $logoPath = upload_file($_FILES['logo'] ?? [], 'partner_logos');
         if ($logoPath === null) {
             $errors[] = 'Загрузите логотип (PNG, JPG, WebP до разумного размера).';
@@ -226,6 +234,14 @@ if ($uri === '/admin/partners/edit') {
         $sortOrder = (int) ($_POST['sort_order'] ?? 0);
         if ($title === '') {
             $errors[] = 'Укажите название.';
+        }
+        if ($websiteUrl !== '') {
+            $normSite = iro_normalize_http_url($websiteUrl);
+            if ($normSite === null) {
+                $errors[] = 'Некорректный адрес сайта партнёра (нужен http/https).';
+            } else {
+                $websiteUrl = $normSite;
+            }
         }
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $newLogo = upload_file($_FILES['logo'] ?? [], 'partner_logos');

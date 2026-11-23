@@ -57,6 +57,14 @@ if ($uri === '/moderator/stage/create') {
         if ($deadline !== null && $deadline < $start) $errors[] = 'Дедлайн не может быть раньше начала этапа.';
         if ($deadline !== null && $deadline > $end) $errors[] = 'Дедлайн не может быть позже окончания этапа.';
         if ($externalEnabled === 1 && $externalLink === '') $errors[] = 'Включён показ ссылки — укажите URL.';
+        if ($externalLink !== '') {
+            $normExternal = iro_normalize_http_url($externalLink);
+            if ($normExternal === null) {
+                $errors[] = 'Некорректная внешняя ссылка этапа (нужен адрес http/https).';
+            } else {
+                $externalLink = $normExternal;
+            }
+        }
         if (!in_array($evaluationMode, ['all', 'assigned'], true)) $evaluationMode = 'all';
         if ($expertsPer < 1) $expertsPer = 1;
 
@@ -223,6 +231,14 @@ if ($uri === '/moderator/stage/edit') {
         if ($deadline !== null && $deadline < $start) $errors[] = 'Дедлайн не может быть раньше начала этапа.';
         if ($deadline !== null && $deadline > $end) $errors[] = 'Дедлайн не может быть позже окончания этапа.';
         if ($externalEnabled === 1 && $externalLink === '') $errors[] = 'Включён показ ссылки — укажите URL.';
+        if ($externalLink !== '') {
+            $normExternal = iro_normalize_http_url($externalLink);
+            if ($normExternal === null) {
+                $errors[] = 'Некорректная внешняя ссылка этапа (нужен адрес http/https).';
+            } else {
+                $externalLink = $normExternal;
+            }
+        }
         if (!in_array($evaluationMode, ['all', 'assigned'], true)) $evaluationMode = 'all';
         if ($expertsPer < 1) $expertsPer = 1;
 

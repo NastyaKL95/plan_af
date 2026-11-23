@@ -46,6 +46,10 @@ if ($uri === '/moderator/consents') {
             flash_set('success', 'Согласие одобрено');
         } elseif ($action === 'reject') {
             $reason = trim((string) ($_POST['reason'] ?? ''));
+            if ($reason === '') {
+                flash_set('danger', 'Укажите причину отказа — участник увидит её в карточке конкурса.');
+                redirect('/moderator/consents?contest_id=' . $contestId);
+            }
             $whoStmt = $pdo->prepare('SELECT user_id FROM user_consents WHERE id = :id AND contest_id = :contest_id LIMIT 1');
             $whoStmt->execute(['id' => $consentId, 'contest_id' => $contestId]);
             $consentTarget = $whoStmt->fetch(PDO::FETCH_ASSOC);
@@ -260,8 +264,20 @@ if ($uri === '/submission/create') {
     if (is_post()) {
         $title = trim((string) ($_POST['title'] ?? ''));
         $workLink = trim((string) ($_POST['work_link'] ?? ''));
+        if ($workLink !== '') {
+            $normWorkLink = iro_normalize_http_url($workLink);
+            if ($normWorkLink === null) {
+                flash_set('danger', 'Некорректная ссылка на работу (нужен адрес http/https).');
+                redirect('/submission/create?stage_id=' . $stageId);
+            }
+            $workLink = $normWorkLink;
+        }
+        if ($title === '') {
+            flash_set('danger', 'Заполните название и прикрепите файл');
+            redirect('/submission/create?stage_id=' . $stageId);
+        }
         $filePath = upload_file($_FILES['file'] ?? [], 'submissions');
-        if ($title === '' || $filePath === null) {
+        if ($filePath === null) {
             flash_set('danger', 'Заполните название и прикрепите файл');
             redirect('/submission/create?stage_id=' . $stageId);
         }
