@@ -324,14 +324,39 @@
     return null;
   }
 
+  var projectFieldLabelMemory = '';
+
   /** Подпись поля «Проект» берётся из списка проектов, а не из текста option. */
   function projectFieldLabel() {
     var sel = $('fProject');
     if (!sel || !sel.value) return '';
     var project = projectById(sel.value);
     if (project) return projectOptionLabel(project);
+    if (projectFieldLabelMemory) return projectFieldLabelMemory;
     var opt = sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
     return opt ? (opt.textContent || '') : '';
+  }
+
+  function paintProjectField(id, label, dept) {
+    var sid = String(id || '');
+    var sel = $('fProject');
+    var btn = $('btnProjectPicker');
+    var project = projectById(sid);
+    var text = (project ? projectOptionLabel(project) : '') || String(label || '');
+    var fullDept = String(dept || (project && project.department_name) || '');
+    if (sel && sid) {
+      var opt = ensureProjectOption(sel, sid);
+      if (opt && text) opt.textContent = text;
+      if (opt && fullDept) opt.title = fullDept;
+      if (opt) opt.selected = true;
+      sel.value = sid;
+    }
+    projectFieldLabelMemory = text;
+    if (!btn) return;
+    btn.textContent = text || 'Выбрать проект';
+    btn.classList.toggle('is-empty', !text);
+    if (text && fullDept) btn.title = text + ' (' + fullDept + ')';
+    else if (text) btn.title = text;
   }
 
   function ensureProjectOption(sel, id) {
@@ -697,57 +722,87 @@
       var sourceName = role === 'project' ? projectPickerSearchText(u) : String(u.name || '');
       return sourceName.toLowerCase().indexOf(q) >= 0;
     });
+    list.textContent = '';
     if (!filtered.length) {
-      list.innerHTML = '<div class="participant-picker-empty">Ничего не найдено</div>';
+      var empty = document.createElement('div');
+      empty.className = 'participant-picker-empty';
+      empty.textContent = 'Ничего не найдено';
+      list.appendChild(empty);
       return;
     }
-    list.innerHTML = filtered
-      .map(function (u) {
-        var valueRaw = u && Object.prototype.hasOwnProperty.call(u, 'id') ? String(u.id) : '';
-        var checked = !!selectedSet[valueRaw];
-        var displayName = role === 'project' ? projectOptionLabel(u) : userPickerLabel(u);
-        var fullDept = role === 'project' && u.department_name ? String(u.department_name) : '';
-        var name = escapeHtml(displayName);
-        var avatar = escapeHtml((displayName || '?').trim().slice(0, 1).toUpperCase());
-        return (
-          '<button type="button" class="participant-picker-item' +
-          (checked ? ' is-selected' : '') +
-          '" data-value="' +
-          escapeHtml(valueRaw) +
-          (fullDept ? ' title="' + escapeHtml(fullDept) + '"' : '') +
-          '"><span class="participant-picker-item-main"><span class="participant-picker-avatar">' +
-          avatar +
-          '</span><span class="participant-picker-name">' +
-          name +
-          '</span></span><span class="participant-picker-check">✓</span></button>'
-        );
-      })
-      .join('');
-    list.querySelectorAll('.participant-picker-item').forEach(function (item) {
-      item.addEventListener('click', function () {
-        var sel = participantSelectByRole(role);
-        if (!sel) return;
-        if (participantRoleIsSingle(role)) {
-          var pickedValue = item.getAttribute('data-value');
-          if (pickedValue == null) return;
-          if (role === 'project') ensureProjectOption(sel, pickedValue);
-          else sel.value = String(pickedValue);
-          updateParticipantSummary(role);
-          closeParticipantPicker();
-          return;
-        }
-        var id = parseInt(item.getAttribute('data-value'), 10);
-        if (!id) return;
-        for (var i = 0; i < sel.options.length; i++) {
-          var opt = sel.options[i];
-          if (parseInt(opt.value, 10) !== id) continue;
-          opt.selected = !opt.selected;
-          break;
-        }
-        updateParticipantSummary(role);
-        renderParticipantPicker();
-      });
+    filtered.forEach(function (u) {
+      var valueRaw = u && Object.prototype.hasOwnProperty.call(u, 'id') ? String(u.id) : '';
+      var checked = !!selectedSet[valueRaw];
+      var displayName = role === 'project' ? projectOptionLabel(u) : userPickerLabel(u);
+      var fullDept = role === 'project' && u.department_name ? String(u.department_name) : '';
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'participant-picker-item' + (checked ? ' is-selected' : '');
+      item.setAttribute('data-value', valueRaw);
+      item.setAttribute('data-label', displayName || '');
+      if (fullDept) {
+        item.setAttribute('data-dept', fullDept);
+        item.title = fullDept;
+      }
+      var main = document.createElement('span');
+      main.className = 'participant-picker-item-main';
+      var avatar = document.createElement('span');
+      avatar.className = 'participant-picker-avatar';
+      avatar.textContent = (displayName || '?').trim().slice(0, 1).toUpperCase();
+      var name = document.createElement('span');
+      name.className = 'participant-picker-name';
+      name.textContent = displayName || '';
+      var mark = document.createElement('span');
+      mark.className = 'participant-picker-check';
+      mark.textContent = '✓';
+      main.appendChild(avatar);
+      main.appendChild(name);
+      item.appendChild(main);
+      item.appendChild(mark);
+      list.appendChild(item);
     });
+  }
+
+  function onParticipantPickerPick(ev) {
+    if (ev.button != null && ev.button !== 0) return;
+    var list = $('participantPickerList');
+    var item = ev.target && ev.target.closest ? ev.target.closest('.participant-picker-item') : null;
+    if (!list || !item || !list.contains(item)) return;
+    var role = participantPickerState.role;
+    if (!role) return;
+    var sel = participantSelectByRole(role);
+    if (!sel) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var pickedValue = item.getAttribute('data-value');
+    if (pickedValue == null) return;
+    if (participantRoleIsSingle(role)) {
+      if (role === 'project') {
+        paintProjectField(pickedValue, item.getAttribute('data-label') || '', item.getAttribute('data-dept') || '');
+      } else {
+        sel.value = String(pickedValue);
+        updateParticipantSummary(role);
+      }
+      closeParticipantPicker();
+      return;
+    }
+    var id = parseInt(pickedValue, 10);
+    if (!id) return;
+    for (var i = 0; i < sel.options.length; i++) {
+      var opt = sel.options[i];
+      if (parseInt(opt.value, 10) !== id) continue;
+      opt.selected = !opt.selected;
+      break;
+    }
+    updateParticipantSummary(role);
+    renderParticipantPicker();
+  }
+
+  function bindParticipantPickerEvents() {
+    var list = $('participantPickerList');
+    if (!list || list.getAttribute('data-picker-bound') === '1') return;
+    list.setAttribute('data-picker-bound', '1');
+    list.addEventListener('mousedown', onParticipantPickerPick);
   }
 
   function openParticipantPicker(role) {
@@ -758,6 +813,9 @@
     var title = $('participantPickerTitle');
     var search = $('participantPickerSearch');
     if (!pop || !title || !search) return;
+    if (pop.parentNode !== document.body) document.body.appendChild(pop);
+    pop.style.zIndex = '10050';
+    bindParticipantPickerEvents();
     participantPickerState.role = role;
     participantPickerState.query = '';
     title.textContent = participantTitleByRole(role);
