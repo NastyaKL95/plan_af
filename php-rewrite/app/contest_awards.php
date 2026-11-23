@@ -16,6 +16,16 @@ function user_display_name(array $u): string
     return (string) ($u['email'] ?? '');
 }
 
+/**
+ * Условие для запросов по evaluations e JOIN submissions s: учитываются только оценки текущих экспертов этапа
+ * и модераторов конкурса, чтобы итоги и статистика совпадали после снятия эксперта.
+ */
+function iro_counted_evaluation_sql(): string
+{
+    return ' AND (EXISTS (SELECT 1 FROM stage_experts se_cnt WHERE se_cnt.stage_id = s.stage_id AND se_cnt.user_id = e.expert_id)'
+        . ' OR EXISTS (SELECT 1 FROM contest_moderators cm_cnt WHERE cm_cnt.contest_id = s.contest_id AND cm_cnt.user_id = e.expert_id))';
+}
+
 /** @return array<int, float> submission_id => средняя сумма баллов по экспертам */
 function contest_submission_score_means(PDO $pdo, int $contestId): array
 {
@@ -25,11 +35,7 @@ function contest_submission_score_means(PDO $pdo, int $contestId): array
          FROM evaluations e
          INNER JOIN submissions s ON s.id = e.submission_id
          INNER JOIN criteria c ON c.id = e.criterion_id
-         WHERE s.contest_id = :cid
-           AND (
-               EXISTS (SELECT 1 FROM stage_experts se WHERE se.stage_id = s.stage_id AND se.user_id = e.expert_id)
-               OR EXISTS (SELECT 1 FROM contest_moderators cm WHERE cm.contest_id = s.contest_id AND cm.user_id = e.expert_id)
-           )
+         WHERE s.contest_id = :cid' . iro_counted_evaluation_sql() . '
          GROUP BY s.id, e.expert_id'
     );
     $stmt->execute(['cid' => $contestId]);
@@ -614,7 +620,7 @@ function contest_stats_eval_rows_by_submission(PDO $pdo, int $contestId): array
          INNER JOIN submissions s ON s.id = e.submission_id
          INNER JOIN users u ON u.id = e.expert_id
          INNER JOIN criteria c ON c.id = e.criterion_id
-         WHERE s.contest_id = :cid'
+         WHERE s.contest_id = :cid' . iro_counted_evaluation_sql()
     );
     $stmt->execute(['cid' => $contestId]);
     $bySub = [];
@@ -824,7 +830,7 @@ function contest_stats_build_context(PDO $pdo, array $contest): array
                 AVG(e.points) AS avg_pts
          FROM evaluations e
          INNER JOIN submissions s ON s.id = e.submission_id
-         WHERE s.contest_id = :cid
+         WHERE s.contest_id = :cid' . iro_counted_evaluation_sql() . '
          GROUP BY e.expert_id'
     );
     $aggStmt->execute(['cid' => $contestId]);
@@ -862,7 +868,7 @@ function contest_stats_build_context(PDO $pdo, array $contest): array
     $avgAll = $pdo->prepare(
         'SELECT AVG(e.points) FROM evaluations e
          JOIN submissions s ON s.id = e.submission_id
-         WHERE s.contest_id = :cid'
+         WHERE s.contest_id = :cid' . iro_counted_evaluation_sql()
     );
     $avgAll->execute(['cid' => $contestId]);
     $avgScoreContest = (float) ($avgAll->fetchColumn() ?: 0);
@@ -992,7 +998,7 @@ function contest_stats_expert_sheet_matrix(
          FROM evaluations e
          INNER JOIN submissions s ON s.id = e.submission_id
          INNER JOIN users u ON u.id = s.user_id
-         WHERE s.contest_id = :cid AND e.expert_id = :eid
+         WHERE s.contest_id = :cid AND e.expert_id = :eid' . iro_counted_evaluation_sql() . '
          ORDER BY u.last_name ASC, u.first_name ASC, u.id ASC'
     );
     $pStmt->execute(['cid' => $contestId, 'eid' => $expertId]);
@@ -1046,7 +1052,7 @@ function contest_stats_expert_sheet_matrix(
         'SELECT e.criterion_id, e.points, e.submission_id
          FROM evaluations e
          INNER JOIN submissions s ON s.id = e.submission_id
-         WHERE s.contest_id = :cid AND e.expert_id = :eid'
+         WHERE s.contest_id = :cid AND e.expert_id = :eid' . iro_counted_evaluation_sql()
     );
     $evStmt->execute(['cid' => $contestId, 'eid' => $expertId]);
     foreach ($evStmt->fetchAll(PDO::FETCH_ASSOC) as $er) {
@@ -1248,7 +1254,7 @@ function contest_stats_build_simple_xlsx(PDO $pdo, array $contest)
          JOIN users pu ON pu.id = s.user_id
          JOIN users eu ON eu.id = e.expert_id
          JOIN criteria c ON c.id = e.criterion_id
-         WHERE s.contest_id = :cid
+         WHERE s.contest_id = :cid' . iro_counted_evaluation_sql() . '
          ORDER BY eu.email, s.id'
     );
     $evAll->execute(['cid' => $contestId]);
@@ -1316,7 +1322,7 @@ function contest_stats_build_simple_xlsx(PDO $pdo, array $contest)
     $expertIdsStmt = $pdo->prepare(
         'SELECT DISTINCT e.expert_id FROM evaluations e
          JOIN submissions s ON s.id = e.submission_id
-         WHERE s.contest_id = :cid'
+         WHERE s.contest_id = :cid' . iro_counted_evaluation_sql()
     );
     $expertIdsStmt->execute(['cid' => $contestId]);
     $expertIds = array_map('intval', array_column($expertIdsStmt->fetchAll(PDO::FETCH_ASSOC), 'expert_id'));
