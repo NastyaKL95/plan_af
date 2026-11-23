@@ -1,0 +1,14 @@
+{
+  "name": "iro/php-rewrite",
+  "description": "Конкурсы — PHP без фреймворка",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.2"
+  },
+  "require-dev": {
+    "friendsofphp/php-cs-fixer": "^3.66"
+  },
+  "config": {
+    "sort-packages": true
+  }
+}
