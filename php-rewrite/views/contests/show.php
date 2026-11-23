@@ -94,6 +94,13 @@ $labelsPhase = stage_phase_status_labels();
                     Обновить заявку
                 </a>
             <?php endif; ?>
+            <?php if (!empty($needs_participant_documents)): ?>
+                <div class="mt-2">
+                    Не все обязательные документы к заявке загружены.
+                    <a href="/contest/apply?contest_id=<?= (int) $contest['id'] ?>"
+                       class="btn btn-primary btn-sm rounded-pill ms-2">Загрузить документы</a>
+                </div>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 

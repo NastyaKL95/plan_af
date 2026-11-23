@@ -128,6 +128,7 @@ if ($uri === '/contest') {
     $canManage = false;
     $canApply = false;
     $canUploadConsent = false;
+    $needsParticipantDocuments = false;
     $applyRoleBlock = false;
     $consent = null;
     $currentStage = null;
@@ -167,6 +168,12 @@ if ($uri === '/contest') {
             && $docIntakeOk
             && $consent !== null
             && (int) ($consent['is_approved'] ?? 0) === 0;
+        $needsParticipantDocuments = $isParticipant
+            && (int) ($contest['is_external'] ?? 0) === 0
+            && $docIntakeOk
+            && $consent !== null
+            && (int) ($consent['is_approved'] ?? 0) === 1
+            && !participant_attachment_package_complete($pdo, $userId, $id);
 
         if (!contest_is_parallel_stage_mode($contest)) {
             $stageStmt2 = $pdo->prepare(
@@ -237,6 +244,7 @@ if ($uri === '/contest') {
         'canManage' => $canManage,
         'canApply' => $canApply,
         'can_upload_consent' => $canUploadConsent,
+        'needs_participant_documents' => $needsParticipantDocuments,
         'apply_role_block' => $applyRoleBlock,
         'consent' => $consent,
         'currentStage' => $currentStage,
@@ -782,21 +790,6 @@ if ($uri === '/contest/apply') {
         flash_set('danger', 'Подача заявки недоступна: вы администратор сайта, модератор этого конкурса или эксперт одного из его этапов.');
         redirect('/contest?id=' . $contestId);
     }
-    $alreadyParticipant = $pdo->prepare('SELECT 1 FROM contest_participants WHERE user_id = :user_id AND contest_id = :contest_id LIMIT 1');
-    $alreadyParticipant->execute(['user_id' => $uid, 'contest_id' => $contestId]);
-    if ($alreadyParticipant->fetchColumn()) {
-        flash_set('info', 'Вы уже участвуете в этом конкурсе.');
-        redirect('/contest?id=' . $contestId);
-    }
-    if (!contest_status_open_to_participants((int) $contest['status'])) {
-        flash_set('danger', 'Приём заявок на этот конкурс сейчас недоступен.');
-        redirect('/contest?id=' . $contestId);
-    }
-    if (!contest_documents_intake_open_for_user($pdo, $contest, $uid)) {
-        flash_set('danger', 'Приём документов по этому конкурсу закрыт модератором.');
-        redirect('/contest?id=' . $contestId);
-    }
-
     $attachmentFields = contest_participant_attachment_fields($pdo, $contestId);
     $existingByField = participant_attachments_by_field_map($pdo, $uid, $contestId);
     $existingConsentStmt = $pdo->prepare('SELECT * FROM user_consents WHERE user_id = :u AND contest_id = :c LIMIT 1');
@@ -807,6 +800,21 @@ if ($uri === '/contest/apply') {
         && (int) ($existingConsent['is_approved'] ?? 0) === 1
         && !$packageComplete;
     $consentFileOptional = $approvedIncomplete;
+
+    $alreadyParticipant = $pdo->prepare('SELECT 1 FROM contest_participants WHERE user_id = :user_id AND contest_id = :contest_id LIMIT 1');
+    $alreadyParticipant->execute(['user_id' => $uid, 'contest_id' => $contestId]);
+    if ($alreadyParticipant->fetchColumn() && !$approvedIncomplete) {
+        flash_set('info', 'Вы уже участвуете в этом конкурсе.');
+        redirect('/contest?id=' . $contestId);
+    }
+    if (!$approvedIncomplete && !contest_status_open_to_participants((int) $contest['status'])) {
+        flash_set('danger', 'Приём заявок на этот конкурс сейчас недоступен.');
+        redirect('/contest?id=' . $contestId);
+    }
+    if (!contest_documents_intake_open_for_user($pdo, $contest, $uid)) {
+        flash_set('danger', 'Приём документов по этому конкурсу закрыт модератором.');
+        redirect('/contest?id=' . $contestId);
+    }
 
     if ($existingConsent !== null && (int) ($existingConsent['is_approved'] ?? 0) === 1 && $packageComplete) {
         flash_set('warning', 'Заявка на участие уже принята: согласие одобрено и все обязательные документы загружены.');
