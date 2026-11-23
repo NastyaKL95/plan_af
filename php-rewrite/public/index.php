@@ -11,6 +11,8 @@ if (PHP_SAPI === 'cli-server') {
     if (!$privateStatic && $staticPath !== '/' && is_file(__DIR__ . $staticPath)) {
         return false;
     }
+    // В режиме роутера встроенный сервер кладёт в SCRIPT_NAME путь запроса — router_uri_path() отрезал бы его как базовый каталог.
+    $_SERVER['SCRIPT_NAME'] = '/index.php';
 }
 
 $configPath = dirname(__DIR__) . '/app/config.php';
