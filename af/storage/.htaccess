@@ -1,0 +1,4 @@
+# Лимиты входа/регистрации — не отдавать как статику.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>

@@ -1,0 +1,4 @@
+# Apache 2.4+: закрыть прямой доступ к каталогу с секретами (при DocumentRoot = корень проекта).
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
