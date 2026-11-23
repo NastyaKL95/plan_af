@@ -24,20 +24,43 @@ function iro_is_private_upload_path(string $uri): bool
     return false;
 }
 
-/** Владелец, модератор/админ конкурса или эксперт конкурса. */
-function iro_private_upload_contest_access(PDO $pdo, int $userId, int $ownerId, int $contestId): bool
+/**
+ * Эксперт видит работу, только если может её оценивать: он в составе экспертов этапа и
+ * (в режиме «назначенные») назначен на эту работу. Свою работу эксперт не оценивает.
+ */
+function iro_expert_can_see_submission(PDO $pdo, int $userId, int $submissionId): bool
 {
-    if ($userId === $ownerId) {
-        return true;
-    }
-    if ($contestId <= 0) {
-        return has_role($pdo, $userId, 'admin');
-    }
+    $stmt = $pdo->prepare(
+        'SELECT 1
+         FROM submissions s
+         INNER JOIN stages st ON st.id = s.stage_id
+         INNER JOIN stage_experts se ON se.stage_id = s.stage_id AND se.user_id = :uid
+         WHERE s.id = :sid AND s.user_id <> :uid2
+           AND (st.evaluation_mode <> \'assigned\'
+                OR EXISTS (SELECT 1 FROM submission_assigned_experts sae
+                           WHERE sae.submission_id = s.id AND sae.user_id = :uid3))
+         LIMIT 1'
+    );
+    $stmt->execute(['uid' => $userId, 'sid' => $submissionId, 'uid2' => $userId, 'uid3' => $userId]);
 
-    return can_manage_contest($pdo, $userId, $contestId)
-        || user_has_expert_hub_access_for_contest($pdo, $userId, $contestId);
+    return (bool) $stmt->fetchColumn();
 }
 
+/** Документы заявки участника эксперт видит, только если ему доступна хотя бы одна работа этого участника. */
+function iro_expert_can_see_participant(PDO $pdo, int $userId, int $participantId, int $contestId): bool
+{
+    $stmt = $pdo->prepare('SELECT id FROM submissions WHERE user_id = :u AND contest_id = :c');
+    $stmt->execute(['u' => $participantId, 'c' => $contestId]);
+    foreach (array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id')) as $sid) {
+        if (iro_expert_can_see_submission($pdo, $userId, $sid)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** Владелец, модератор конкурса или эксперт, которому доступна соответствующая работа. */
 function iro_private_upload_allowed(PDO $pdo, int $userId, string $webPath): bool
 {
     if (has_role($pdo, $userId, 'admin')) {
@@ -47,23 +70,23 @@ function iro_private_upload_allowed(PDO $pdo, int $userId, string $webPath): boo
 
     switch ($subdir) {
         case 'consents':
-            $stmt = $pdo->prepare('SELECT user_id, contest_id FROM user_consents WHERE consent_file_path = :p LIMIT 1');
+            $stmt = $pdo->prepare('SELECT user_id, contest_id, 0 AS submission_id FROM user_consents WHERE consent_file_path = :p LIMIT 1');
             break;
         case 'participant_contest_files':
-            $stmt = $pdo->prepare('SELECT user_id, contest_id FROM participant_attachments WHERE file_path = :p LIMIT 1');
+            $stmt = $pdo->prepare('SELECT user_id, contest_id, 0 AS submission_id FROM participant_attachments WHERE file_path = :p LIMIT 1');
             break;
         case 'submissions':
-            $stmt = $pdo->prepare('SELECT user_id, contest_id FROM submissions WHERE file_path = :p LIMIT 1');
+            $stmt = $pdo->prepare('SELECT user_id, contest_id, id AS submission_id FROM submissions WHERE file_path = :p LIMIT 1');
             break;
         case 'submission_optional':
             $stmt = $pdo->prepare(
-                'SELECT s.user_id, s.contest_id FROM submission_attachments sa
+                'SELECT s.user_id, s.contest_id, s.id AS submission_id FROM submission_attachments sa
                  INNER JOIN submissions s ON s.id = sa.submission_id
                  WHERE sa.file_path = :p LIMIT 1'
             );
             break;
         case 'contest_archive_reports':
-            $stmt = $pdo->prepare('SELECT 0 AS user_id, id AS contest_id FROM contests WHERE archive_report_path = :p LIMIT 1');
+            $stmt = $pdo->prepare('SELECT id AS contest_id FROM contests WHERE archive_report_path = :p LIMIT 1');
             $stmt->execute(['p' => $webPath]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -76,8 +99,17 @@ function iro_private_upload_allowed(PDO $pdo, int $userId, string $webPath): boo
     if ($row === false) {
         return false;
     }
+    $ownerId = (int) $row['user_id'];
+    $contestId = (int) $row['contest_id'];
+    $submissionId = (int) $row['submission_id'];
+    if ($userId === $ownerId || ($contestId > 0 && can_manage_contest($pdo, $userId, $contestId))) {
+        return true;
+    }
+    if ($submissionId > 0) {
+        return iro_expert_can_see_submission($pdo, $userId, $submissionId);
+    }
 
-    return iro_private_upload_contest_access($pdo, $userId, (int) $row['user_id'], (int) $row['contest_id']);
+    return $contestId > 0 && iro_expert_can_see_participant($pdo, $userId, $ownerId, $contestId);
 }
 
 function iro_serve_private_upload(PDO $pdo, ?int $userId, string $uri): never
