@@ -648,6 +648,23 @@ function user_cannot_apply_to_contest_as_staff(PDO $pdo, int $userId, int $conte
          LIMIT 1'
     );
     $stmt->execute(['contest_id' => $contestId, 'user_id' => $userId]);
+    if ($stmt->fetchColumn()) {
+        return true;
+    }
+    $stmt = $pdo->prepare(
+        'SELECT 1 FROM contest_expert_pool WHERE contest_id = :contest_id AND user_id = :user_id
+         UNION ALL
+         SELECT 1 FROM submission_assigned_experts sae
+         INNER JOIN submissions s ON s.id = sae.submission_id
+         WHERE s.contest_id = :contest_id2 AND sae.user_id = :user_id2
+         LIMIT 1'
+    );
+    $stmt->execute([
+        'contest_id' => $contestId,
+        'user_id' => $userId,
+        'contest_id2' => $contestId,
+        'user_id2' => $userId,
+    ]);
 
     return (bool) $stmt->fetchColumn();
 }

@@ -21,6 +21,10 @@ if ($uri === '/moderator/consents') {
                 redirect('/moderator/consents?contest_id=' . $contestId);
             }
             $participantUserId = (int) $consentTarget['user_id'];
+            if (user_cannot_apply_to_contest_as_staff($pdo, $participantUserId, $contestId)) {
+                flash_set('danger', 'Пользователь — модератор или эксперт этого конкурса и не может быть участником.');
+                redirect('/moderator/consents?contest_id=' . $contestId);
+            }
             $stmt = $pdo->prepare(
                 'UPDATE user_consents SET is_approved = 1, rejection_reason = "", reviewed_at = CURRENT_TIMESTAMP, reviewed_by = :reviewed_by WHERE id = :id AND contest_id = :contest_id'
             );

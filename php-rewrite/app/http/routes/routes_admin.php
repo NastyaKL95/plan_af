@@ -1354,6 +1354,13 @@ if ($uri === '/admin/contests/edit') {
             }
         }
 
+        $staffIds = array_values(array_unique(array_merge($isAdmin ? $modIds : [], $expertIds)));
+        foreach ($staffIds as $staffId) {
+            if (contest_user_is_applicant_or_participant($pdo, $contestId, $staffId)) {
+                $errors[] = 'Нельзя назначить модератором или экспертом пользователя, который подал заявку или участвует в этом конкурсе (id ' . $staffId . ').';
+            }
+        }
+
         if ($errors) {
             $pickerModeratorsInitial = users_picker_initial($pdo, normalize_int_list($_POST['moderator_ids'] ?? []));
             $pickerExpertsInitial = users_picker_initial($pdo, normalize_int_list($_POST['expert_ids'] ?? []));
