@@ -15,8 +15,10 @@
 3. Start PHP server from `php-rewrite/public`:
 
 ```bash
-php -S localhost:8080
+php -S localhost:8080 index.php
 ```
+
+`index.php` в роли роутера встроенного сервера отдаёт статику сам, а приватные загрузки — только через проверку прав.
 
 4. Open <http://localhost:8080>.
 
@@ -47,6 +49,13 @@ php -S localhost:8080
 2. В `app/config.php` включите `oauth.yandex` (client_id / client_secret / redirect_uri) и при необходимости `mail` для писем сброса пароля.
 3. В кабинете Яндекс OAuth укажите Redirect URI вида `https://ваш-домен/auth/yandex/callback`.
 4. Для ссылок в письмах задайте `app.public_origin` (например `https://konkurs.zabedu.ru`).
+
+## Приватные файлы
+
+Каталоги `public/uploads/{consents,participant_contest_files,submissions,submission_optional,contest_archive_reports}`
+не отдаются напрямую: правило в `public/.htaccess` направляет такие запросы в `index.php`, который проверяет права
+(владелец, модератор/эксперт конкурса или администратор). На nginx нужно аналогичное правило:
+`location ~ ^/uploads/(consents|participant_contest_files|submissions|submission_optional|contest_archive_reports)/ { rewrite ^ /index.php last; }`.
 
 ## Разработка
 

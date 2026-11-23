@@ -2,6 +2,17 @@
 
 declare(strict_types=1);
 
+if (PHP_SAPI === 'cli-server') {
+    $staticPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    $privateStatic = preg_match(
+        '#^/uploads/(consents|participant_contest_files|submissions|submission_optional|contest_archive_reports)/#',
+        $staticPath
+    ) === 1;
+    if (!$privateStatic && $staticPath !== '/' && is_file(__DIR__ . $staticPath)) {
+        return false;
+    }
+}
+
 $configPath = dirname(__DIR__) . '/app/config.php';
 if (!file_exists($configPath)) {
     http_response_code(500);
@@ -30,6 +41,7 @@ require dirname(__DIR__) . '/app/contest_archive.php';
 require dirname(__DIR__) . '/app/participant_archive.php';
 require dirname(__DIR__) . '/app/csrf.php';
 require dirname(__DIR__) . '/app/http/web_helpers.php';
+require dirname(__DIR__) . '/app/private_files.php';
 
 $pdo = Database::connection($config);
 $GLOBALS['iro_request_path'] = router_uri_path($config);
@@ -37,6 +49,9 @@ $uri = $GLOBALS['iro_request_path'];
 iro_csrf_verify_post();
 $userId = Auth::userId();
 $user = Auth::user($pdo);
+if (iro_is_private_upload_path($uri)) {
+    iro_serve_private_upload($pdo, $userId, $uri);
+}
 $flash = flash_all();
 $isAdmin = $userId !== null ? has_role($pdo, $userId, 'admin') : false;
 $isExpert = $userId !== null && user_has_expert_portal_nav($pdo, $userId);

@@ -94,7 +94,7 @@ function contest_archive_execute(PDO $pdo, int $contestId): array
     if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
         return ['ok' => false, 'message' => 'Не удалось создать каталог для отчёта'];
     }
-    $safeName = 'contest_' . $contestId . '_archive_' . date('Y-m-d_His') . '.xlsx';
+    $safeName = 'contest_' . $contestId . '_archive_' . date('Y-m-d_His') . '_' . bin2hex(random_bytes(8)) . '.xlsx';
     $absPath = $dir . DIRECTORY_SEPARATOR . $safeName;
     try {
         $xlsx->writeToFile($absPath);
