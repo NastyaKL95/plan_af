@@ -8,9 +8,26 @@
 
 Структура точки входа и маршрутов описана в [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
 
-## Run locally
+## Установка (веб-мастер)
 
-1. Create database and execute `database/schema.sql` (optionally `database/seed.sql`).
+Как в WordPress/Moodle: загрузите файлы на хостинг, направьте корень сайта на `php-rewrite/public`
+и откройте сайт в браузере. Пока нет `app/config.php`, вместо сайта открывается мастер установки:
+
+1. **Проверка сервера** — PHP 8.2+, расширения `pdo_mysql`, `mbstring`, `fileinfo`, `zip`, `openssl`
+   (желательно `curl`), права на запись в `storage/logs`, `storage/cache`, `public/uploads` и `app/`.
+2. **База данных** — сервер, порт, имя базы, пользователь и пароль MySQL/MariaDB; базу можно создать прямо отсюда.
+3. **Сайт и администратор** — название, адрес сайта, email и пароль первого администратора, по желанию демо-конкурс.
+   Мастер создаёт таблицы (`database/schema.sql`), системные роли и администратора.
+   Если в базе уже есть таблицы сайта, они не трогаются — создаётся только конфиг.
+4. **Готово** — мастер записывает `app/config.php`, после чего сам отключается.
+   Если каталог `app/` закрыт на запись, мастер покажет текст конфига — сохраните его в `app/config.php` вручную.
+
+Вход через Яндекс и почта настраиваются потом в `app/config.php` (см. раздел «Яндекс и почта»).
+Чтобы установить заново, удалите `app/config.php` (и при необходимости очистите базу).
+
+## Ручная установка
+
+1. Create database and execute `database/schema.sql` (optionally `database/seed.sql` — admin `admin@iro.local` / `password`, смените пароль после входа).
 2. Copy `app/config.example.php` to `app/config.php` and update credentials.
 3. Start PHP server from `php-rewrite/public`:
 
@@ -26,11 +43,8 @@ php -S localhost:8080 index.php
 
 1. In OpenServer select modules: **Apache** + **PHP 8.2+** + **MySQL 8+**.
 2. Add a domain (for example `iro.local`) with document root pointing to `php-rewrite/public`.
-3. Create a MySQL database (for example `iro_php`) and import:
-   - `database/schema.sql`
-   - optional `database/seed.sql`
-4. Set DB credentials in `app/config.php`.
-5. Open `http://iro.local/`.
+3. Open `http://iro.local/` — запустится мастер установки (см. выше).
+   Либо вручную: импортируйте `database/schema.sql` (и `database/seed.sql`) и создайте `app/config.php`.
 
 ## Implemented in this rewrite
 

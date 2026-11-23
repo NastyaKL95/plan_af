@@ -17,9 +17,9 @@ if (PHP_SAPI === 'cli-server') {
 
 $configPath = dirname(__DIR__) . '/app/config.php';
 if (!file_exists($configPath)) {
-    http_response_code(500);
-    echo 'Create app/config.php from app/config.example.php';
-    exit;
+    require dirname(__DIR__) . '/app/helpers.php';
+    require dirname(__DIR__) . '/app/installer.php';
+    iro_installer_run($configPath);
 }
 
 $config = require $configPath;
