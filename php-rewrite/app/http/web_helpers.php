@@ -52,9 +52,23 @@ function normalize_attachment_rows(array $sortOrders, array $titles, array $requ
     return $rows;
 }
 
+/** Участник конкурса или подал заявку (согласие) — не может быть экспертом/модератором этого конкурса. */
+function contest_user_is_applicant_or_participant(PDO $pdo, int $contestId, int $userId): bool
+{
+    $st = $pdo->prepare(
+        'SELECT 1 FROM contest_participants WHERE contest_id = :cid AND user_id = :uid
+         UNION ALL
+         SELECT 1 FROM user_consents WHERE contest_id = :cid2 AND user_id = :uid2
+         LIMIT 1'
+    );
+    $st->execute(['cid' => $contestId, 'uid' => $userId, 'cid2' => $contestId, 'uid2' => $userId]);
+
+    return (bool) $st->fetchColumn();
+}
+
 /**
- * Можно ли назначить пользователя экспертом этапа: активен, не администратор сайта;
- * при непустом пуле экспертов конкурса — только из пула.
+ * Можно ли назначить пользователя экспертом этапа: активен, не администратор сайта,
+ * не участник/заявитель этого конкурса; при непустом пуле экспертов конкурса — только из пула.
  */
 function contest_stage_expert_user_allowed(PDO $pdo, int $contestId, int $candidateUserId): bool
 {
@@ -68,6 +82,9 @@ function contest_stage_expert_user_allowed(PDO $pdo, int $contestId, int $candid
     $uStmt->execute(['id' => $candidateUserId]);
     $row = $uStmt->fetch(PDO::FETCH_ASSOC);
     if (!$row || (int) ($row['is_active'] ?? 0) !== 1) {
+        return false;
+    }
+    if (contest_user_is_applicant_or_participant($pdo, $contestId, $candidateUserId)) {
         return false;
     }
     $poolStmt = $pdo->prepare('SELECT user_id FROM contest_expert_pool WHERE contest_id = :cid');

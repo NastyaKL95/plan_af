@@ -492,13 +492,14 @@ if ($uri === '/expert/submissions') {
             redirect('/contest?id=' . $contestId);
         }
     }
-    $sql = 'SELECT s.*, u.email FROM submissions s JOIN users u ON u.id = s.user_id WHERE s.stage_id = :stage_id';
+    $sql = 'SELECT s.*, u.email FROM submissions s JOIN users u ON u.id = s.user_id
+            WHERE s.stage_id = :stage_id AND s.user_id <> :self_id';
     if (!$isPrivileged && (string) $stage['evaluation_mode'] === 'assigned') {
         $sql .= ' AND EXISTS (SELECT 1 FROM submission_assigned_experts sae WHERE sae.submission_id = s.id AND sae.user_id = :user_id)';
     }
     $sql .= ' ORDER BY s.submission_date DESC';
     $stmt = $pdo->prepare($sql);
-    $params = ['stage_id' => $stageId];
+    $params = ['stage_id' => $stageId, 'self_id' => $uid];
     if (str_contains($sql, ':user_id')) {
         $params['user_id'] = $uid;
     }
@@ -550,6 +551,10 @@ if ($uri === '/expert/evaluate') {
     }
     $contestId = (int) $submission['contest_id'];
     $stageId = (int) $submission['stage_id'];
+    if ((int) $submission['user_id'] === $uid) {
+        flash_set('danger', 'Нельзя оценивать собственную работу');
+        redirect('/expert/submissions?stage_id=' . $stageId);
+    }
     $isPrivileged = contest_expert_area_privileged($pdo, $uid, $contestId);
     if (!$isPrivileged) {
         $modeEval = (string) ($submission['evaluation_mode'] ?? 'all');

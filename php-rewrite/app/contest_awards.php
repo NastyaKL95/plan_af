@@ -1549,6 +1549,10 @@ function contest_assign_experts_to_submission_impl(PDO $pdo, int $submissionId, 
         $pdo,
         array_map('intval', array_column($expertIdsStmt->fetchAll(PDO::FETCH_ASSOC), 'user_id'))
     );
+    $authorStmt = $pdo->prepare('SELECT user_id FROM submissions WHERE id = :id LIMIT 1');
+    $authorStmt->execute(['id' => $submissionId]);
+    $authorId = (int) ($authorStmt->fetchColumn() ?: 0);
+    $expertIds = array_values(array_filter($expertIds, static fn (int $eid): bool => $eid !== $authorId));
     if ($expertIds === []) {
         return;
     }
