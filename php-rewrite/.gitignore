@@ -1,0 +1,8 @@
+/app/config.php
+/vendor/
+/.php-cs-fixer.cache
+/public/uploads/
+/storage/logs/*.log
+/storage/cache/*
+!/storage/cache/.gitkeep
+!/storage/logs/.gitkeep

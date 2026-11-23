@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# Private uploads (consents, participant files, works, archive reports) are served only via index.php with an access check.
+RewriteRule ^uploads/(consents|participant_contest_files|submissions|submission_optional|contest_archive_reports)/ index.php [L]
+
+# If the requested path is an existing file or directory, serve it directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Otherwise route everything through the front controller.
+RewriteRule ^ index.php [L]
+
