@@ -68,6 +68,8 @@ return [
         // 'router_base_path' => 'папка/public',
         /* Ограничение рассылки «новая работа» экспертам в режиме «все эксперты этапа» (защита от тысяч INSERT). */
         // 'expert_notify_max_recipients' => 120,
+        /* Максимальный размер загружаемого файла в байтах (по умолчанию 50 МБ; также ограничено upload_max_filesize в php.ini). */
+        // 'upload_max_bytes' => 52428800,
         /* Cookie сессии (см. app/session.php). На HTTPS в продакшене включите secure. */
         // 'session_cookie_secure' => true,
         // 'session_cookie_samesite' => 'Lax',

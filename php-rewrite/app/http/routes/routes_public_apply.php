@@ -157,6 +157,7 @@ if ($uri === '/contest') {
         $docIntakeOk = contest_documents_intake_open_for_user($pdo, $contest, $userId);
         $canApply = !$isParticipant
             && contest_status_open_to_participants((int) $contest['status'])
+            && (string) $contest['end_date'] >= date('Y-m-d')
             && !$applyRoleBlock
             && (int) ($contest['is_external'] ?? 0) === 0
             && !$consentBlocksApply
@@ -809,6 +810,10 @@ if ($uri === '/contest/apply') {
     }
     if (!$approvedIncomplete && !contest_status_open_to_participants((int) $contest['status'])) {
         flash_set('danger', 'Приём заявок на этот конкурс сейчас недоступен.');
+        redirect('/contest?id=' . $contestId);
+    }
+    if (!$approvedIncomplete && (string) $contest['end_date'] < date('Y-m-d')) {
+        flash_set('danger', 'Конкурс завершён — приём заявок закрыт.');
         redirect('/contest?id=' . $contestId);
     }
     if (!contest_documents_intake_open_for_user($pdo, $contest, $uid)) {

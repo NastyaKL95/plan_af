@@ -182,6 +182,9 @@ if ($uri === '/admin/partners/create') {
             $errors[] = 'Загрузите логотип (PNG, JPG, WebP до разумного размера).';
         }
         $isActive = isset($_POST['is_active']) ? 1 : 0;
+        if ($errors && $logoPath !== null) {
+            iro_delete_public_upload($logoPath);
+        }
         if (!$errors) {
             $ins = $pdo->prepare(
                 'INSERT INTO site_partners (title, website_url, logo_path, sort_order, is_active)
@@ -245,15 +248,13 @@ if ($uri === '/admin/partners/edit') {
         }
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $newLogo = upload_file($_FILES['logo'] ?? [], 'partner_logos');
-        $logoPath = trim((string) ($row['logo_path'] ?? ''));
-        if ($newLogo !== null) {
-            if ($logoPath !== '') {
-                iro_delete_public_upload($logoPath);
-            }
-            $logoPath = $newLogo;
-        }
+        $prevLogo = trim((string) ($row['logo_path'] ?? ''));
+        $logoPath = $newLogo ?? $prevLogo;
         if ($logoPath === '') {
             $errors[] = 'Нужен логотип (загрузите файл).';
+        }
+        if ($errors && $newLogo !== null) {
+            iro_delete_public_upload($newLogo);
         }
         if (!$errors) {
             $pdo->prepare(
@@ -266,6 +267,9 @@ if ($uri === '/admin/partners/edit') {
                 'active' => $isActive,
                 'id' => $id,
             ]);
+            if ($newLogo !== null && $prevLogo !== '' && $prevLogo !== $newLogo) {
+                iro_delete_public_upload($prevLogo);
+            }
             flash_set('success', 'Партнёр обновлён');
             redirect('/admin/partners');
         }

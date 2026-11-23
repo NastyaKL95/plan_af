@@ -58,6 +58,18 @@ if ($uri === '/moderator/consents') {
                 redirect('/moderator/consents?contest_id=' . $contestId);
             }
             $participantUserId = (int) $consentTarget['user_id'];
+            $hasWorkStmt = $pdo->prepare(
+                'SELECT 1 FROM submissions WHERE user_id = :u AND contest_id = :c
+                 UNION ALL
+                 SELECT 1 FROM awards a INNER JOIN contest_participants cp ON cp.id = a.participant_id
+                 WHERE cp.user_id = :u2 AND a.contest_id = :c2
+                 LIMIT 1'
+            );
+            $hasWorkStmt->execute(['u' => $participantUserId, 'c' => $contestId, 'u2' => $participantUserId, 'c2' => $contestId]);
+            if ($hasWorkStmt->fetchColumn()) {
+                flash_set('danger', 'У участника уже есть поданные работы или итоговое место — отклонить согласие нельзя. Сначала удалите работы/место.');
+                redirect('/moderator/consents?contest_id=' . $contestId);
+            }
             $stmt = $pdo->prepare(
                 'UPDATE user_consents SET is_approved = 0, rejection_reason = :reason, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = :reviewed_by WHERE id = :id AND contest_id = :contest_id'
             );
@@ -408,6 +420,15 @@ if ($uri === '/submission/supplements') {
     $fieldsStmt->execute(['stage_id' => $submission['stage_id']]);
     $fields = $fieldsStmt->fetchAll();
 
+    $existingStmt = $pdo->prepare(
+        'SELECT sa.field_id, sa.file_path FROM submission_attachments sa WHERE sa.submission_id = :submission_id'
+    );
+    $existingStmt->execute(['submission_id' => $submission['id']]);
+    $existingAttachments = [];
+    foreach ($existingStmt->fetchAll() as $row) {
+        $existingAttachments[(int) $row['field_id']] = (string) $row['file_path'];
+    }
+
     if (is_post()) {
         $uploadedAny = false;
         foreach ($fields as $field) {
@@ -416,9 +437,6 @@ if ($uri === '/submission/supplements') {
             if ($suppPath !== null) {
                 $fidSup = (int) $field['id'];
                 $oldSup = trim((string) ($existingAttachments[$fidSup] ?? ''));
-                if ($oldSup !== '' && $oldSup !== $suppPath) {
-                    iro_delete_public_upload($oldSup);
-                }
                 $slot = $pdo->prepare(
                     'INSERT INTO submission_attachments (submission_id, field_id, file_path)
                      VALUES (:submission_id, :field_id, :file_path)
@@ -429,6 +447,9 @@ if ($uri === '/submission/supplements') {
                     'field_id' => $field['id'],
                     'file_path' => $suppPath,
                 ]);
+                if ($oldSup !== '' && $oldSup !== $suppPath) {
+                    iro_delete_public_upload($oldSup);
+                }
                 $existingAttachments[$fidSup] = $suppPath;
                 $uploadedAny = true;
             }
@@ -445,15 +466,6 @@ if ($uri === '/submission/supplements') {
         }
         flash_set('success', 'Дополнительные вложения обновлены');
         redirect('/contest?id=' . (int) $submission['contest_id']);
-    }
-
-    $existingStmt = $pdo->prepare(
-        'SELECT sa.field_id, sa.file_path FROM submission_attachments sa WHERE sa.submission_id = :submission_id'
-    );
-    $existingStmt->execute(['submission_id' => $submission['id']]);
-    $existingAttachments = [];
-    foreach ($existingStmt->fetchAll() as $row) {
-        $existingAttachments[(int) $row['field_id']] = (string) $row['file_path'];
     }
 
     render('user/edit_submission_supplements', [

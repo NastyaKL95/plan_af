@@ -1020,7 +1020,7 @@ function iro_public_web_file_realpath(string $webPath): ?string
     }
     $full = realpath(env_path('public' . $webPath));
     $pub = realpath(env_path('public'));
-    if ($full === false || $pub === false || !str_starts_with($full, $pub) || !is_file($full)) {
+    if ($full === false || $pub === false || !str_starts_with($full, $pub . DIRECTORY_SEPARATOR) || !is_file($full)) {
         return null;
     }
 
@@ -1312,7 +1312,7 @@ function iro_delete_public_upload(?string $webPath): void
     }
     $full = realpath(env_path('public' . $webPath));
     $base = realpath(env_path('public/uploads'));
-    if ($full === false || $base === false || !str_starts_with($full, $base)) {
+    if ($full === false || $base === false || !str_starts_with($full, $base . DIRECTORY_SEPARATOR)) {
         return;
     }
     if (is_file($full)) {
@@ -1391,6 +1391,25 @@ function upload_file(array $file, string $subdir): ?string
     $ext = mb_strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
     if ($ext === '' || !in_array($ext, $allowed, true)) {
         return null;
+    }
+    $maxBytes = (int) ($GLOBALS['config']['app']['upload_max_bytes'] ?? 50 * 1024 * 1024);
+    $size = (int) ($file['size'] ?? 0);
+    if ($size <= 0 || ($maxBytes > 0 && $size > $maxBytes)) {
+        return null;
+    }
+    $tmp = (string) ($file['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        return null;
+    }
+    if (class_exists('finfo')) {
+        $mime = (string) ((new finfo(FILEINFO_MIME_TYPE))->file($tmp) ?: '');
+        $isImageExt = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+        if ($isImageExt && !str_starts_with($mime, 'image/')) {
+            return null;
+        }
+        if (preg_match('#^(text/html|text/x-php|application/x-php|application/x-httpd-php|image/svg\+xml|application/javascript|text/javascript)#', $mime) === 1) {
+            return null;
+        }
     }
 
     $baseDir = env_path('public/uploads/' . $subdirNorm);

@@ -252,6 +252,9 @@ function participant_submit_work_block_reason(PDO $pdo, int $userId, array $cont
         if ($todayYmd < $cStart || $todayYmd > $cEnd) {
             return 'outside_contest_dates';
         }
+        if (!empty($stage['submission_deadline']) && $todayYmd > stage_effective_deadline($stage)) {
+            return 'past_deadline';
+        }
 
         return null;
     }
