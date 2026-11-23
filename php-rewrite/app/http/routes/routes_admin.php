@@ -646,7 +646,7 @@ if ($uri === '/admin/contests/archive' && is_post()) {
 }
 
 if ($uri === '/admin/users/edit' || $uri === '/admin/users/edit/') {
-    require_login();
+    $uid = require_login();
     if (!$isAdmin) {
         flash_set('danger', 'Нет доступа');
         redirect('/');
@@ -687,11 +687,47 @@ if ($uri === '/admin/users/edit' || $uri === '/admin/users/edit/') {
         }
         $chosenRoleIds = array_values(array_unique($chosenRoleIds));
 
-        $pdo->prepare('DELETE FROM user_roles WHERE user_id = :uid')->execute(['uid' => $editId]);
-        if ($chosenRoleIds) {
-            $ins = $pdo->prepare('INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)');
-            foreach ($chosenRoleIds as $rid) {
-                $ins->execute(['user_id' => $editId, 'role_id' => $rid]);
+        $editableRoleIds = [];
+        foreach ($editableSlugs as $slug) {
+            if (isset($validBySlug[$slug])) {
+                $editableRoleIds[] = $validBySlug[$slug];
+            }
+        }
+        $adminRoleId = $validBySlug['admin'] ?? 0;
+        $removesAdmin = $adminRoleId > 0
+            && has_role($pdo, $editId, 'admin')
+            && !in_array($adminRoleId, $chosenRoleIds, true);
+        if ($removesAdmin) {
+            if ($editId === $uid) {
+                flash_set('danger', 'Нельзя снять роль администратора с самого себя.');
+                redirect('/admin/users/edit?id=' . $editId);
+            }
+            $adminCount = (int) $pdo->query(
+                "SELECT COUNT(DISTINCT ur.user_id) FROM user_roles ur
+                 JOIN system_roles sr ON sr.id = ur.role_id
+                 JOIN users u ON u.id = ur.user_id
+                 WHERE sr.slug = 'admin' AND u.is_active = 1"
+            )->fetchColumn();
+            if ($adminCount <= 1) {
+                flash_set('danger', 'Нельзя снять роль у последнего активного администратора.');
+                redirect('/admin/users/edit?id=' . $editId);
+            }
+        }
+
+        if ($editableRoleIds !== []) {
+            $pdo->beginTransaction();
+            try {
+                $ph = implode(',', array_fill(0, count($editableRoleIds), '?'));
+                $pdo->prepare("DELETE FROM user_roles WHERE user_id = ? AND role_id IN ($ph)")
+                    ->execute(array_merge([$editId], $editableRoleIds));
+                $ins = $pdo->prepare('INSERT INTO user_roles (user_id, role_id) VALUES (:user_id, :role_id)');
+                foreach ($chosenRoleIds as $rid) {
+                    $ins->execute(['user_id' => $editId, 'role_id' => $rid]);
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
             }
         }
 
