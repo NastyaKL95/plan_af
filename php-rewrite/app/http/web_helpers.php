@@ -35,7 +35,7 @@ function normalize_int_list($raw): array
     return $out;
 }
 
-function normalize_attachment_rows(array $sortOrders, array $titles, array $requirements): array
+function normalize_attachment_rows(array $sortOrders, array $titles, array $requirements, array $ids = []): array
 {
     $rows = [];
     $n = max(count($sortOrders), count($titles), count($requirements));
@@ -46,10 +46,75 @@ function normalize_attachment_rows(array $sortOrders, array $titles, array $requ
         if ($title === '') {
             continue;
         }
-        $rows[] = ['sort_order' => $sort, 'title' => $title, 'requirements' => $req];
+        $id = (int) ($ids[$i] ?? 0);
+        $rows[] = ['id' => $id > 0 ? $id : 0, 'sort_order' => $sort, 'title' => $title, 'requirements' => $req];
     }
     usort($rows, static fn($a, $b) => ($a['sort_order'] <=> $b['sort_order']) ?: strcmp($a['title'], $b['title']));
     return $rows;
+}
+
+/**
+ * Сохраняет поля вложений без пересоздания: существующие (по id) обновляются, новые добавляются,
+ * убранные из формы удаляются вместе с загруженными в них файлами.
+ * Пересоздание ломало связь уже загруженных файлов с полями (новые id).
+ *
+ * @param 'contest'|'stage' $kind
+ * @param list<array{id:int,sort_order:int,title:string,requirements:string}> $rows
+ */
+function iro_sync_attachment_fields(PDO $pdo, string $kind, int $ownerId, array $rows): void
+{
+    if ($kind === 'contest') {
+        $table = 'contest_attachment_fields';
+        $ownerCol = 'contest_id';
+        $filesTable = 'participant_attachments';
+    } else {
+        $table = 'stage_attachment_fields';
+        $ownerCol = 'stage_id';
+        $filesTable = 'submission_attachments';
+    }
+
+    $exStmt = $pdo->prepare("SELECT id FROM {$table} WHERE {$ownerCol} = :oid");
+    $exStmt->execute(['oid' => $ownerId]);
+    $existingIds = array_map('intval', array_column($exStmt->fetchAll(PDO::FETCH_ASSOC), 'id'));
+
+    $upd = $pdo->prepare(
+        "UPDATE {$table} SET sort_order = :sort_order, title = :title, requirements = :requirements
+         WHERE id = :id AND {$ownerCol} = :oid"
+    );
+    $ins = $pdo->prepare(
+        "INSERT INTO {$table} ({$ownerCol}, sort_order, title, requirements)
+         VALUES (:oid, :sort_order, :title, :requirements)"
+    );
+    $kept = [];
+    foreach ($rows as $row) {
+        $params = [
+            'oid' => $ownerId,
+            'sort_order' => $row['sort_order'],
+            'title' => $row['title'],
+            'requirements' => $row['requirements'],
+        ];
+        $rid = (int) ($row['id'] ?? 0);
+        if ($rid > 0 && in_array($rid, $existingIds, true)) {
+            $upd->execute($params + ['id' => $rid]);
+            $kept[] = $rid;
+        } else {
+            $ins->execute($params);
+        }
+    }
+
+    $removed = array_values(array_diff($existingIds, $kept));
+    if ($removed === []) {
+        return;
+    }
+    $ph = implode(',', array_fill(0, count($removed), '?'));
+    $filesStmt = $pdo->prepare("SELECT file_path FROM {$filesTable} WHERE field_id IN ($ph)");
+    $filesStmt->execute($removed);
+    $paths = array_column($filesStmt->fetchAll(PDO::FETCH_ASSOC), 'file_path');
+    $pdo->prepare("DELETE FROM {$filesTable} WHERE field_id IN ($ph)")->execute($removed);
+    $pdo->prepare("DELETE FROM {$table} WHERE id IN ($ph)")->execute($removed);
+    foreach ($paths as $p) {
+        iro_delete_public_upload(trim((string) $p));
+    }
 }
 
 /** Участник конкурса или подал заявку (согласие) — не может быть экспертом/модератором этого конкурса. */

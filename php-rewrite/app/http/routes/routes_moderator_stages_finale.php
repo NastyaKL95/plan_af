@@ -43,6 +43,7 @@ if ($uri === '/moderator/stage/create') {
             (array) ($_POST['stage_attach_sort_order'] ?? []),
             (array) ($_POST['stage_attach_title'] ?? []),
             (array) ($_POST['stage_attach_requirements'] ?? []),
+            (array) ($_POST['stage_attach_id'] ?? []),
         );
         if ($stageFormat === STAGE_FORMAT_IN_PERSON) {
             $stageAttachmentFields = [];
@@ -125,19 +126,7 @@ if ($uri === '/moderator/stage/create') {
                 $ins->execute(['sid' => $stageId, 'uid' => $eid]);
             }
 
-            $pdo->prepare('DELETE FROM stage_attachment_fields WHERE stage_id = :sid')->execute(['sid' => $stageId]);
-            $ins2 = $pdo->prepare(
-                'INSERT INTO stage_attachment_fields (stage_id, sort_order, title, requirements)
-                 VALUES (:stage_id, :sort_order, :title, :requirements)'
-            );
-            foreach ($stageAttachmentFields as $row) {
-                $ins2->execute([
-                    'stage_id' => $stageId,
-                    'sort_order' => $row['sort_order'],
-                    'title' => $row['title'],
-                    'requirements' => $row['requirements'],
-                ]);
-            }
+            iro_sync_attachment_fields($pdo, 'stage', $stageId, $stageAttachmentFields);
 
             flash_set('success', 'Этап создан');
             redirect('/contest?id=' . $contestId);
@@ -185,7 +174,7 @@ if ($uri === '/moderator/stage/edit') {
     $selectedExperts = array_map('intval', array_column($selStmt->fetchAll(), 'user_id'));
     $pickerStageExpertsInitial = users_picker_initial($pdo, $selectedExperts);
 
-    $sfStmt = $pdo->prepare('SELECT sort_order, title, requirements FROM stage_attachment_fields WHERE stage_id = :sid ORDER BY sort_order, id');
+    $sfStmt = $pdo->prepare('SELECT id, sort_order, title, requirements FROM stage_attachment_fields WHERE stage_id = :sid ORDER BY sort_order, id');
     $sfStmt->execute(['sid' => $stageId]);
     $stageAttachmentFields = $sfStmt->fetchAll();
 
@@ -220,6 +209,7 @@ if ($uri === '/moderator/stage/edit') {
             (array) ($_POST['stage_attach_sort_order'] ?? []),
             (array) ($_POST['stage_attach_title'] ?? []),
             (array) ($_POST['stage_attach_requirements'] ?? []),
+            (array) ($_POST['stage_attach_id'] ?? []),
         );
         if ($stageFormat === STAGE_FORMAT_IN_PERSON) {
             $stageAttachmentFields = [];
@@ -313,19 +303,7 @@ if ($uri === '/moderator/stage/edit') {
                 $ins->execute(['sid' => $stageId, 'uid' => $eid]);
             }
 
-            $pdo->prepare('DELETE FROM stage_attachment_fields WHERE stage_id = :sid')->execute(['sid' => $stageId]);
-            $ins2 = $pdo->prepare(
-                'INSERT INTO stage_attachment_fields (stage_id, sort_order, title, requirements)
-                 VALUES (:stage_id, :sort_order, :title, :requirements)'
-            );
-            foreach ($stageAttachmentFields as $row) {
-                $ins2->execute([
-                    'stage_id' => $stageId,
-                    'sort_order' => $row['sort_order'],
-                    'title' => $row['title'],
-                    'requirements' => $row['requirements'],
-                ]);
-            }
+            iro_sync_attachment_fields($pdo, 'stage', $stageId, $stageAttachmentFields);
 
             if ($prevInstruction !== '' && (string) $instructionPath !== $prevInstruction) {
                 iro_delete_public_upload($prevInstruction);

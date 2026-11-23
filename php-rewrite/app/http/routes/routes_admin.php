@@ -958,6 +958,7 @@ if ($uri === '/admin/contests/create') {
             (array) ($_POST['contest_attach_sort_order'] ?? []),
             (array) ($_POST['contest_attach_title'] ?? []),
             (array) ($_POST['contest_attach_requirements'] ?? []),
+            (array) ($_POST['contest_attach_id'] ?? []),
         );
 
         if ($title === '') $errors[] = 'Укажите название.';
@@ -1314,6 +1315,7 @@ if ($uri === '/admin/contests/edit') {
             (array) ($_POST['contest_attach_sort_order'] ?? []),
             (array) ($_POST['contest_attach_title'] ?? []),
             (array) ($_POST['contest_attach_requirements'] ?? []),
+            (array) ($_POST['contest_attach_id'] ?? []),
         );
 
         if ($title === '') $errors[] = 'Укажите название.';
@@ -1408,19 +1410,7 @@ if ($uri === '/admin/contests/edit') {
             }
             $selectedExperts = $expertIds;
 
-            $pdo->prepare('DELETE FROM contest_attachment_fields WHERE contest_id = :cid')->execute(['cid' => $contestId]);
-            $ins3 = $pdo->prepare(
-                'INSERT INTO contest_attachment_fields (contest_id, sort_order, title, requirements)
-                 VALUES (:contest_id, :sort_order, :title, :requirements)'
-            );
-            foreach ($attachmentFields as $row) {
-                $ins3->execute([
-                    'contest_id' => $contestId,
-                    'sort_order' => $row['sort_order'],
-                    'title' => $row['title'],
-                    'requirements' => $row['requirements'],
-                ]);
-            }
+            iro_sync_attachment_fields($pdo, 'contest', $contestId, $attachmentFields);
 
             flash_set('success', 'Конкурс обновлён');
             redirect('/admin/contests');
@@ -1430,7 +1420,7 @@ if ($uri === '/admin/contests/edit') {
 
     if (!$attachmentFields) {
         $afStmt = $pdo->prepare(
-            'SELECT sort_order, title, requirements FROM contest_attachment_fields WHERE contest_id = :cid ORDER BY sort_order, id'
+            'SELECT id, sort_order, title, requirements FROM contest_attachment_fields WHERE contest_id = :cid ORDER BY sort_order, id'
         );
         $afStmt->execute(['cid' => $contestId]);
         $attachmentFields = $afStmt->fetchAll();

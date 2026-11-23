@@ -204,7 +204,7 @@ $dimPhase = '';
                     <?php if (!empty($attachRows)): ?>
                         <?php foreach ($attachRows as $i => $row): ?>
                             <tr>
-                                <td><input class="form-control" type="number" name="stage_attach_sort_order[]" value="<?= (int) ($row['sort_order'] ?? $i) ?>"<?= $dim ?>></td>
+                                <td><input type="hidden" name="stage_attach_id[]" value="<?= (int) ($row['id'] ?? 0) ?>"><input class="form-control" type="number" name="stage_attach_sort_order[]" value="<?= (int) ($row['sort_order'] ?? $i) ?>"<?= $dim ?>></td>
                                 <td><input class="form-control" type="text" name="stage_attach_title[]" value="<?= h((string) ($row['title'] ?? '')) ?>"<?= $dim ?>></td>
                                 <td>
                                     <div class="d-flex gap-2">
@@ -216,7 +216,7 @@ $dimPhase = '';
                         <?php endforeach; ?>
                     <?php endif; ?>
                     <tr>
-                        <td><input class="form-control" type="number" name="stage_attach_sort_order[]" value="<?= count($attachRows) ?>"<?= $dim ?>></td>
+                        <td><input type="hidden" name="stage_attach_id[]" value="0"><input class="form-control" type="number" name="stage_attach_sort_order[]" value="<?= count($attachRows) ?>"<?= $dim ?>></td>
                         <td><input class="form-control" type="text" name="stage_attach_title[]" value=""<?= $dim ?>></td>
                         <td>
                             <div class="d-flex gap-2">
@@ -256,7 +256,7 @@ $dimPhase = '';
         btn.addEventListener('click', function () {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><input class="form-control" type="number" name="stage_attach_sort_order[]" value=""></td>
+                <td><input type="hidden" name="stage_attach_id[]" value="0"><input class="form-control" type="number" name="stage_attach_sort_order[]" value=""></td>
                 <td><input class="form-control" type="text" name="stage_attach_title[]" value=""></td>
                 <td>
                     <div class="d-flex gap-2">

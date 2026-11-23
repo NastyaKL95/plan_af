@@ -221,7 +221,7 @@ $documentsLinkFieldVal = !empty($errors)
                     <?php if (!empty($attachRows)): ?>
                         <?php foreach ($attachRows as $i => $row): ?>
                             <tr>
-                                <td><input class="form-control" type="number" name="contest_attach_sort_order[]" value="<?= (int) ($row['sort_order'] ?? $i) ?>"></td>
+                                <td><input type="hidden" name="contest_attach_id[]" value="<?= (int) ($row['id'] ?? 0) ?>"><input class="form-control" type="number" name="contest_attach_sort_order[]" value="<?= (int) ($row['sort_order'] ?? $i) ?>"></td>
                                 <td><input class="form-control" type="text" name="contest_attach_title[]" value="<?= h((string) ($row['title'] ?? '')) ?>"></td>
                                 <td>
                                     <div class="d-flex gap-2">
@@ -233,7 +233,7 @@ $documentsLinkFieldVal = !empty($errors)
                         <?php endforeach; ?>
                     <?php endif; ?>
                     <tr>
-                        <td><input class="form-control" type="number" name="contest_attach_sort_order[]" value="<?= count($attachRows) ?>"></td>
+                        <td><input type="hidden" name="contest_attach_id[]" value="0"><input class="form-control" type="number" name="contest_attach_sort_order[]" value="<?= count($attachRows) ?>"></td>
                         <td><input class="form-control" type="text" name="contest_attach_title[]" value=""></td>
                         <td>
                             <div class="d-flex gap-2">
@@ -272,7 +272,7 @@ $documentsLinkFieldVal = !empty($errors)
         btn.addEventListener('click', function () {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><input class="form-control" type="number" name="contest_attach_sort_order[]" value=""></td>
+                <td><input type="hidden" name="contest_attach_id[]" value="0"><input class="form-control" type="number" name="contest_attach_sort_order[]" value=""></td>
                 <td><input class="form-control" type="text" name="contest_attach_title[]" value=""></td>
                 <td>
                     <div class="d-flex gap-2">
