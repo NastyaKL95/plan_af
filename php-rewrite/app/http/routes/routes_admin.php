@@ -734,6 +734,42 @@ if ($uri === '/admin/users/edit' || $uri === '/admin/users/edit/') {
             }
         }
 
+        $activeChange = null;
+        if (isset($_POST['is_active_present'])) {
+            $wantActive = isset($_POST['is_active']) ? 1 : 0;
+            $curActiveStmt = $pdo->prepare('SELECT is_active FROM users WHERE id = :id LIMIT 1');
+            $curActiveStmt->execute(['id' => $editId]);
+            $curActive = $curActiveStmt->fetchColumn();
+            if ($curActive === false) {
+                flash_set('danger', 'Пользователь не найден');
+                redirect($redirList);
+            }
+            if ((int) $curActive !== $wantActive) {
+                if ($wantActive === 0 && $editId === $uid) {
+                    flash_set('danger', 'Нельзя отключить собственную учётную запись.');
+                    redirect('/admin/users/edit?id=' . $editId);
+                }
+                $activeChange = $wantActive;
+            }
+        }
+        $keepsAdmin = $adminRoleId > 0 && in_array($adminRoleId, $chosenRoleIds, true);
+        if ($activeChange === 0 && $keepsAdmin) {
+            $otherAdmins = $pdo->prepare(
+                "SELECT COUNT(DISTINCT ur.user_id) FROM user_roles ur
+                 JOIN system_roles sr ON sr.id = ur.role_id
+                 JOIN users u ON u.id = ur.user_id
+                 WHERE sr.slug = 'admin' AND u.is_active = 1 AND u.id <> :id"
+            );
+            $otherAdmins->execute(['id' => $editId]);
+            if ((int) $otherAdmins->fetchColumn() === 0) {
+                flash_set('danger', 'Нельзя отключить последнего активного администратора.');
+                redirect('/admin/users/edit?id=' . $editId);
+            }
+        }
+        if ($activeChange !== null) {
+            $pdo->prepare('UPDATE users SET is_active = :a WHERE id = :id')->execute(['a' => $activeChange, 'id' => $editId]);
+        }
+
         if ($editableRoleIds !== []) {
             $pdo->beginTransaction();
             try {
@@ -766,6 +802,9 @@ if ($uri === '/admin/users/edit' || $uri === '/admin/users/edit/') {
             flash_set('danger', 'Роли сохранены. Пароль не изменён: ' . $pwMsg);
         } else {
             $parts = ['Роли пользователя обновлены'];
+            if ($activeChange !== null) {
+                $parts[] = $activeChange === 1 ? 'учётная запись включена' : 'учётная запись отключена';
+            }
             if ($newPw !== '' && $confirmPw !== '') {
                 $parts[] = 'пароль изменён';
             }
@@ -780,7 +819,7 @@ if ($uri === '/admin/users/edit' || $uri === '/admin/users/edit/') {
         redirect('/admin/users');
     }
 
-    $uStmt = $pdo->prepare('SELECT id, email, first_name, last_name, middle_name FROM users WHERE id = :id LIMIT 1');
+    $uStmt = $pdo->prepare('SELECT id, email, first_name, last_name, middle_name, is_active FROM users WHERE id = :id LIMIT 1');
     $uStmt->execute(['id' => $editId]);
     $editUser = $uStmt->fetch(PDO::FETCH_ASSOC);
     if (!$editUser) {

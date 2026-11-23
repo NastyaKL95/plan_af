@@ -55,6 +55,17 @@ $backHref = '/admin/users?page=' . $rp . ($rq !== '' ? '&q=' . rawurlencode($rq)
             </fieldset>
 
             <fieldset class="iro-stage-form-section">
+                <legend>Доступ</legend>
+                <input type="hidden" name="is_active_present" value="1">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="is_active" value="1" id="user-is-active-<?= $uid ?>"
+                        <?= (int) ($u['is_active'] ?? 1) === 1 ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="user-is-active-<?= $uid ?>">Учётная запись активна (может входить на сайт)</label>
+                </div>
+                <p class="small text-muted mt-2 mb-0">При отключении все сессии пользователя завершаются при следующем запросе.</p>
+            </fieldset>
+
+            <fieldset class="iro-stage-form-section">
                 <legend>Пароль</legend>
                 <p class="small text-muted mb-3">Оставьте поля пустыми, если менять пароль не нужно. Минимум 8 символов.</p>
                 <div class="row g-3">

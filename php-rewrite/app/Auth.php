@@ -24,6 +24,7 @@ final class Auth
             @session_regenerate_id(true);
         }
         $_SESSION['user_id'] = $userId;
+        unset($_SESSION['iro_auth_fp']);
         if (function_exists('iro_csrf_token')) {
             unset($_SESSION['iro_csrf_token']);
             iro_csrf_token();
@@ -301,8 +302,30 @@ final class Auth
 
             return null;
         }
+        $fp = self::sessionFingerprint($user);
+        if (!isset($_SESSION['iro_auth_fp'])) {
+            $_SESSION['iro_auth_fp'] = $fp;
+        } elseif (!hash_equals((string) $_SESSION['iro_auth_fp'], $fp)) {
+            self::logout();
+
+            return null;
+        }
 
         return $user;
+    }
+
+    /** Меняется при смене пароля — остальные сессии пользователя после этого становятся недействительными. */
+    private static function sessionFingerprint(array $user): string
+    {
+        return hash('sha256', (int) $user['id'] . '|' . (string) ($user['password_hash'] ?? ''));
+    }
+
+    /** Текущая сессия остаётся действующей после смены собственного пароля. */
+    private static function refreshOwnSessionFingerprint(int $userId): void
+    {
+        if (self::userId() === $userId) {
+            unset($_SESSION['iro_auth_fp']);
+        }
     }
 
     /**
@@ -427,13 +450,14 @@ final class Auth
             'h' => password_hash($newPassword, PASSWORD_DEFAULT),
             'id' => $targetUserId,
         ]);
+        self::refreshOwnSessionFingerprint($targetUserId);
 
         return null;
     }
 
     public static function logout(): void
     {
-        unset($_SESSION['user_id']);
+        unset($_SESSION['user_id'], $_SESSION['iro_auth_fp']);
         session_regenerate_id(true);
     }
 }

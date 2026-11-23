@@ -47,8 +47,8 @@ $pdo = Database::connection($config);
 $GLOBALS['iro_request_path'] = router_uri_path($config);
 $uri = $GLOBALS['iro_request_path'];
 iro_csrf_verify_post();
-$userId = Auth::userId();
 $user = Auth::user($pdo);
+$userId = Auth::userId();
 if (iro_is_private_upload_path($uri)) {
     iro_serve_private_upload($pdo, $userId, $uri);
 }
