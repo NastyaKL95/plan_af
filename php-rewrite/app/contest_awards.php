@@ -26,6 +26,10 @@ function contest_submission_score_means(PDO $pdo, int $contestId): array
          INNER JOIN submissions s ON s.id = e.submission_id
          INNER JOIN criteria c ON c.id = e.criterion_id
          WHERE s.contest_id = :cid
+           AND (
+               EXISTS (SELECT 1 FROM stage_experts se WHERE se.stage_id = s.stage_id AND se.user_id = e.expert_id)
+               OR EXISTS (SELECT 1 FROM contest_moderators cm WHERE cm.contest_id = s.contest_id AND cm.user_id = e.expert_id)
+           )
          GROUP BY s.id, e.expert_id'
     );
     $stmt->execute(['cid' => $contestId]);

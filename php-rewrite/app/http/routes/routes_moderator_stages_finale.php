@@ -302,6 +302,12 @@ if ($uri === '/moderator/stage/edit') {
             foreach ($expertIds as $eid) {
                 $ins->execute(['sid' => $stageId, 'uid' => $eid]);
             }
+            $pdo->prepare(
+                'DELETE sae FROM submission_assigned_experts sae
+                 INNER JOIN submissions s ON s.id = sae.submission_id
+                 LEFT JOIN stage_experts se ON se.stage_id = s.stage_id AND se.user_id = sae.user_id
+                 WHERE s.stage_id = :sid AND se.user_id IS NULL'
+            )->execute(['sid' => $stageId]);
 
             iro_sync_attachment_fields($pdo, 'stage', $stageId, $stageAttachmentFields);
 

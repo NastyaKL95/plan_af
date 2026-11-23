@@ -562,6 +562,12 @@ if ($uri === '/expert/evaluate') {
     $isPrivileged = contest_expert_area_privileged($pdo, $uid, $contestId);
     if (!$isPrivileged) {
         $modeEval = (string) ($submission['evaluation_mode'] ?? 'all');
+        $stageExpertCheck = $pdo->prepare('SELECT 1 FROM stage_experts WHERE stage_id = :stage_id AND user_id = :user_id LIMIT 1');
+        $stageExpertCheck->execute(['stage_id' => $stageId, 'user_id' => $uid]);
+        if (!$stageExpertCheck->fetchColumn()) {
+            flash_set('danger', 'Вы не входите в состав экспертов этого этапа');
+            redirect('/expert/contests');
+        }
         if ($modeEval === 'assigned') {
             $assignedCheck = $pdo->prepare(
                 'SELECT 1 FROM submission_assigned_experts WHERE submission_id = :submission_id AND user_id = :user_id LIMIT 1'
@@ -621,26 +627,38 @@ if ($uri === '/expert/evaluate') {
             flash_set('danger', 'Этап завершён или закрыт для оценивания, изменять оценки нельзя.');
             redirect('/expert/evaluate?submission_id=' . $submissionId);
         }
+        $pointsByCriterion = [];
         foreach ($criteria as $criterion) {
-            $points = (int) ($_POST['points_' . $criterion['id']] ?? -1);
+            $rawPoints = trim((string) ($_POST['points_' . $criterion['id']] ?? ''));
+            $points = preg_match('/^-?\d+$/', $rawPoints) === 1 ? (int) $rawPoints : null;
             $cMin = (int) ($criterion['min_points'] ?? 0);
             $cMax = (int) ($criterion['max_points'] ?? 0);
-            if ($points < $cMin || $points > $cMax) {
+            if ($points === null || $points < $cMin || $points > $cMax) {
                 flash_set('danger', 'Проверьте баллы по всем критериям (диапазон по каждому критерию)');
                 redirect('/expert/evaluate?submission_id=' . $submissionId);
             }
-            $upsert = $pdo->prepare(
-                'INSERT INTO evaluations (expert_id, submission_id, criterion_id, points, evaluated_at, comment)
-                 VALUES (:expert_id, :submission_id, :criterion_id, :points, CURRENT_TIMESTAMP, :comment)
-                 ON DUPLICATE KEY UPDATE points = VALUES(points), evaluated_at = VALUES(evaluated_at), comment = VALUES(comment)'
-            );
-            $upsert->execute([
-                'expert_id' => $uid,
-                'submission_id' => $submissionId,
-                'criterion_id' => $criterion['id'],
-                'points' => $points,
-                'comment' => trim((string) ($_POST['comment_' . $criterion['id']] ?? '')),
-            ]);
+            $pointsByCriterion[(int) $criterion['id']] = $points;
+        }
+        $upsert = $pdo->prepare(
+            'INSERT INTO evaluations (expert_id, submission_id, criterion_id, points, evaluated_at, comment)
+             VALUES (:expert_id, :submission_id, :criterion_id, :points, CURRENT_TIMESTAMP, :comment)
+             ON DUPLICATE KEY UPDATE points = VALUES(points), evaluated_at = VALUES(evaluated_at), comment = VALUES(comment)'
+        );
+        $pdo->beginTransaction();
+        try {
+            foreach ($pointsByCriterion as $criterionId => $points) {
+                $upsert->execute([
+                    'expert_id' => $uid,
+                    'submission_id' => $submissionId,
+                    'criterion_id' => $criterionId,
+                    'points' => $points,
+                    'comment' => trim((string) ($_POST['comment_' . $criterionId] ?? '')),
+                ]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
         }
         refresh_awards_from_ranking_if_exist($pdo, $contestId);
         flash_set('success', 'Оценки сохранены');
@@ -679,7 +697,7 @@ if ($uri === '/moderator/assign-experts') {
     $uid = require_login();
     $submissionId = (int) ($_GET['submission_id'] ?? 0);
     $subStmt = $pdo->prepare(
-        'SELECT s.id, s.title, s.stage_id, st.contest_id, st.title AS stage_title FROM submissions s JOIN stages st ON st.id = s.stage_id WHERE s.id = :id LIMIT 1'
+        'SELECT s.id, s.title, s.stage_id, s.user_id, st.contest_id, st.title AS stage_title FROM submissions s JOIN stages st ON st.id = s.stage_id WHERE s.id = :id LIMIT 1'
     );
     $subStmt->execute(['id' => $submissionId]);
     $submission = $subStmt->fetch();
@@ -692,22 +710,35 @@ if ($uri === '/moderator/assign-experts') {
         if (!is_array($chosen)) {
             $chosen = [];
         }
-        $beforeStmt = $pdo->prepare('SELECT user_id FROM submission_assigned_experts WHERE submission_id = :submission_id');
-        $beforeStmt->execute(['submission_id' => $submissionId]);
-        $oldExpertIds = array_map('intval', array_column($beforeStmt->fetchAll(PDO::FETCH_ASSOC), 'user_id'));
-        $pdo->prepare('DELETE FROM submission_assigned_experts WHERE submission_id = :submission_id')
-            ->execute(['submission_id' => $submissionId]);
-        $insert = $pdo->prepare('INSERT INTO submission_assigned_experts (submission_id, user_id) VALUES (:submission_id, :user_id)');
+        $stageExpertsStmt = $pdo->prepare('SELECT user_id FROM stage_experts WHERE stage_id = :stage_id');
+        $stageExpertsStmt->execute(['stage_id' => (int) $submission['stage_id']]);
+        $stageExpertIds = array_map('intval', array_column($stageExpertsStmt->fetchAll(PDO::FETCH_ASSOC), 'user_id'));
+        $authorId = (int) $submission['user_id'];
         $newExpertIds = [];
-        foreach ($chosen as $expertId) {
-            $eid = (int) $expertId;
-            if ($eid <= 0) {
+        foreach (normalize_int_list($chosen) as $eid) {
+            if ($eid === $authorId || !in_array($eid, $stageExpertIds, true)) {
                 continue;
             }
-            $insert->execute(['submission_id' => $submissionId, 'user_id' => $eid]);
             $newExpertIds[] = $eid;
         }
         $newExpertIds = array_values(array_unique($newExpertIds));
+
+        $pdo->beginTransaction();
+        try {
+            $beforeStmt = $pdo->prepare('SELECT user_id FROM submission_assigned_experts WHERE submission_id = :submission_id FOR UPDATE');
+            $beforeStmt->execute(['submission_id' => $submissionId]);
+            $oldExpertIds = array_map('intval', array_column($beforeStmt->fetchAll(PDO::FETCH_ASSOC), 'user_id'));
+            $pdo->prepare('DELETE FROM submission_assigned_experts WHERE submission_id = :submission_id')
+                ->execute(['submission_id' => $submissionId]);
+            $insert = $pdo->prepare('INSERT INTO submission_assigned_experts (submission_id, user_id) VALUES (:submission_id, :user_id)');
+            foreach ($newExpertIds as $eid) {
+                $insert->execute(['submission_id' => $submissionId, 'user_id' => $eid]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
         $newlyAssigned = array_values(array_diff($newExpertIds, $oldExpertIds));
         notify_experts_newly_assigned($pdo, $submissionId, $newlyAssigned);
         flash_set('success', 'Назначения экспертов сохранены');
